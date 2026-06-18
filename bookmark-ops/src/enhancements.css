@@ -1,0 +1,43 @@
+/* Supplementary styles kept in a separate file from styles.css (which an
+   external formatter/editor keeps reverting). Loaded after styles.css. */
+
+/* ── show / hide URLs ─────────────────────────────────────────────────────── */
+[data-urls="0"] .row-meta { display: none; }
+
+/* drop the boxed background/border behind real favicons (the "white squares");
+   the colored-initial fallback tiles keep their fill. */
+.favicon--img { background: transparent; border: none; }
+
+/* ── nested folder tree ───────────────────────────────────────────────────── */
+.folder-mode { margin-left: auto; }
+.folder-caret { display: inline-flex; align-items: center; justify-content: center; width: 16px; flex-shrink: 0; color: var(--dim); transition: transform .16s ease; transform: rotate(-90deg); }
+.folder-caret.open { transform: rotate(0deg); }
+.folder-caret--leaf { visibility: hidden; }
+.folder-caret:hover { color: var(--text); }
+
+/* ── right-clickable section labels ───────────────────────────────────────── */
+.sec-label { cursor: context-menu; }
+
+/* ── pinned layouts: grid + icons-only compact ────────────────────────────── */
+.pin-cards--grid { flex-wrap: wrap; }
+.pin-cards--grid .pin-card { flex: 1 1 150px; width: auto; }
+
+.pin-compact { display: flex; flex-wrap: nowrap; gap: 12px; padding: 4px 16px 14px; }
+
+/* compact lays the label and the icon row side by side (one row) */
+.pinned--compact { display: flex; align-items: center; gap: 10px; }
+.pinned--compact .pinned-head { padding: 10px 0 10px 16px; flex-shrink: 0; }
+.pinned--compact .pin-compact { flex: 1; min-width: 0; padding: 8px 16px 8px 0; }
+.pin-chip {
+  position: relative; flex-shrink: 0; width: 40px; height: 40px;
+  display: grid; place-items: center; border-radius: var(--r-md);
+  background: var(--panel); border: 1px solid var(--line);
+  cursor: pointer; user-select: none;
+  transition: border-color .16s ease, background .16s ease;
+}
+.pin-chip:hover { border-color: var(--line2); background: var(--raised); }
+.pin-chip .favicon { width: 24px; height: 24px; border-radius: 7px; }
+.pin-chip .favicon img { width: 15px; height: 15px; }
+.pin-chip.dragging { opacity: .4; }
+.pin-chip[draggable] { cursor: grab; }
+.pin-chip[draggable]:active { cursor: grabbing; }

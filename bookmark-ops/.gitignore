@@ -1,0 +1,8 @@
+node_modules
+dist
+demo-dist
+coverage
+*.log
+*.local
+.DS_Store
+.gstack/
