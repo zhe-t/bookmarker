@@ -18,8 +18,12 @@ jobs:
           node-version: 20
           cache: npm
 
+      # Using `npm install` rather than `npm ci`: vite (esbuild 0.21) and vitest
+      # (esbuild 0.28) pull two esbuild versions whose platform-specific optional
+      # deps npm can't represent consistently across OSes in one lockfile, which
+      # makes `npm ci` fail on Linux. `npm install` resolves optionals per-OS.
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Lint
         run: npm run lint
