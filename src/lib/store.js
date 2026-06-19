@@ -63,6 +63,91 @@ export async function patchMeta(fn) {
   return setMeta(next);
 }
 
+/* ── pure metadata transformers ──
+   Each takes a meta draft (and args), mutates the relevant field, and returns
+   the same object. Designed to drop straight into `patchMeta((m) => applyX(m, …))`.
+   Call sites keep the toast wording / state side-effects; only the data rules live here. */
+
+// Toggle pin on a set of ids: if all are already pinned, unpin them all;
+// otherwise append the ones not yet pinned (preserving existing order).
+export function applyTogglePin(meta, ids) {
+  const sids = ids.map(String);
+  const cur = (meta.pinned || []).map(String);
+  const allPinned = sids.every((id) => cur.includes(id));
+  meta.pinned = allPinned ? cur.filter((x) => !sids.includes(x)) : [...cur, ...sids.filter((id) => !cur.includes(id))];
+  return meta;
+}
+
+// Same shape as applyTogglePin, for the read-later list.
+export function applyToggleReadLater(meta, ids) {
+  const sids = ids.map(String);
+  const cur = (meta.readLater || []).map(String);
+  const allLater = sids.every((id) => cur.includes(id));
+  meta.readLater = allLater ? cur.filter((x) => !sids.includes(x)) : [...cur, ...sids.filter((id) => !cur.includes(id))];
+  return meta;
+}
+
+// Reorder the pinned list. `orderedPinnedIds` is the visible pinned order
+// (passed in so this stays pure); fromId moves to toId's slot. Any pinned ids
+// not in the visible list are appended after, untouched.
+export function applyReorderPinned(meta, orderedPinnedIds, fromId, toId) {
+  if (fromId == null || String(fromId) === String(toId)) return meta;
+  const ids = orderedPinnedIds.map(String);
+  const from = ids.indexOf(String(fromId)), to = ids.indexOf(String(toId));
+  if (from < 0 || to < 0) return meta;
+  ids.splice(to, 0, ids.splice(from, 1)[0]);
+  const cur = (meta.pinned || []).map(String);
+  meta.pinned = [...ids, ...cur.filter((id) => !ids.includes(id))];
+  return meta;
+}
+
+// Add a tag to each id, deduping per id.
+export function applyAddTag(meta, ids, tag) {
+  ids.forEach((id) => { meta.tags[id] = [...new Set([...(meta.tags[id] || []), tag])]; });
+  return meta;
+}
+
+// Rename a tag everywhere; if the target already exists on an item the result
+// dedupes (so rename-into-existing merges).
+export function applyRenameTag(meta, from, to) {
+  Object.keys(meta.tags).forEach((id) => {
+    if (meta.tags[id]?.includes(from)) meta.tags[id] = [...new Set(meta.tags[id].map((t) => (t === from ? to : t)))];
+  });
+  return meta;
+}
+
+// Remove a tag from every item that carries it.
+export function applyDeleteTag(meta, tag) {
+  Object.keys(meta.tags).forEach((id) => {
+    if (meta.tags[id]?.includes(tag)) meta.tags[id] = meta.tags[id].filter((x) => x !== tag);
+  });
+  return meta;
+}
+
+// Soft-delete: add ids to trashed (deduped).
+export function applyTrash(meta, ids) {
+  meta.trashed = [...new Set([...meta.trashed, ...ids.map(String)])];
+  return meta;
+}
+
+// Restore from trash: drop ids from trashed.
+export function applyRestore(meta, ids) {
+  meta.trashed = meta.trashed.filter((x) => !ids.map(String).includes(x));
+  return meta;
+}
+
+// Archive: add ids to archived (deduped).
+export function applyArchive(meta, ids) {
+  meta.archived = [...new Set([...meta.archived, ...ids.map(String)])];
+  return meta;
+}
+
+// Unarchive: drop ids from archived.
+export function applyUnarchive(meta, ids) {
+  meta.archived = meta.archived.filter((x) => !ids.map(String).includes(x));
+  return meta;
+}
+
 // Push the current local meta to sync (used when the user first enables sync).
 export async function pushToSync() {
   const local = await readArea("local");

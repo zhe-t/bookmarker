@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { loadEnriched, moveTo, removeForever, exportHtml, exportJson, importHtml, importJson, updateBookmark, createBookmark, createFolder, renameFolder, deleteFolder } from "../lib/bookmarks.js";
-import { patchMeta, getSyncEnabled, setSyncEnabled, pushToSync } from "../lib/store.js";
-import { ago, greeting, urlKey, parseQuery, rank, computeIssues, healthScore, isStale, byAdded, byAlpha, byDomain } from "../lib/model.js";
+import { patchMeta, getSyncEnabled, setSyncEnabled, pushToSync, applyTogglePin, applyToggleReadLater, applyReorderPinned, applyAddTag, applyRenameTag, applyDeleteTag, applyTrash, applyRestore, applyArchive, applyUnarchive } from "../lib/store.js";
+import { ago, greeting, urlKey, computeIssues, healthScore, selectBookmarks, topOverlay } from "../lib/model.js";
 import { Palette } from "./Palette.jsx";
 import { BookmarkModal } from "./BookmarkModal.jsx";
 import { ContextMenu } from "./ContextMenu.jsx";
@@ -152,21 +152,25 @@ export default function App() {
       else if (e.key === "?" && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) { setHelpOpen(true); }
       else if (e.key === "/" && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && mode === "search") { e.preventDefault(); searchRef.current?.focus(); }
       else if (e.key === "Escape") {
-        // close only the topmost layer
-        if (cmd) setCmd(false);
-        else if (ctx) setCtx(null);
-        else if (bmModal) setBmModal(null);
-        else if (guide) setGuide(null);
-        else if (helpOpen) setHelpOpen(false);
-        else if (feedbackOpen) setFeedbackOpen(false);
-        else if (folderStyleTarget) setFolderStyleTarget(null);
-        else if (statsOpen) setStatsOpen(false);
-        else if (tourOpen) setTourOpen(false);
-        else if (settingsOpen) setSettingsOpen(false);
-        else if (confirm) setConfirm(null);
-        else if (moveOpen) setMoveOpen(false);
-        else if (folderOpen) setFolderOpen(false);
-        else if (menuOpen) setMenuOpen(false);
+        // close only the topmost layer (priority encoded by topOverlay)
+        const top = topOverlay({ cmd, ctx, bmModal, guide, helpOpen, feedbackOpen, folderStyleTarget, statsOpen, tourOpen, settingsOpen, confirm, moveOpen, folderOpen, menuOpen });
+        const close = {
+          cmd: () => setCmd(false),
+          ctx: () => setCtx(null),
+          bmModal: () => setBmModal(null),
+          guide: () => setGuide(null),
+          helpOpen: () => setHelpOpen(false),
+          feedbackOpen: () => setFeedbackOpen(false),
+          folderStyleTarget: () => setFolderStyleTarget(null),
+          statsOpen: () => setStatsOpen(false),
+          tourOpen: () => setTourOpen(false),
+          settingsOpen: () => setSettingsOpen(false),
+          confirm: () => setConfirm(null),
+          moveOpen: () => setMoveOpen(false),
+          folderOpen: () => setFolderOpen(false),
+          menuOpen: () => setMenuOpen(false),
+        };
+        if (top) close[top]();
         else if (sel.size) { setSel(new Set()); selAnchor.current = null; }
         else if (mode === "cleanup") setMode("search");
       }
@@ -202,37 +206,10 @@ export default function App() {
   const allTags = useMemo(() => [...new Set(live.flatMap((b) => b.tags))].sort(), [live]);
   const dupGroups = useMemo(() => { const m = {}; live.forEach((b) => (m[b.url] = m[b.url] || []).push(b)); return Object.values(m).filter((g) => g.length > 1); }, [live]);
 
-  const parsed = useMemo(() => parseQuery(q), [q]);
-  const results = useMemo(() => {
-    const { ops, text } = parsed; let pool = live;
-    // pinned live in their own section while browsing (no query); hide them
-    // from the main list so they aren't shown twice. During search they stay.
-    if (!q && showPinned) pool = pool.filter((b) => !b.pinned);
-    if (scope === "issues") pool = pool.filter((b) => b.dead || b.dupeOf != null);
-    else if (scope === "later") pool = pool.filter((b) => b.readLater);
-    const is = ops.is || (["untagged", "dead", "dupes", "stale"].includes(scope) ? scope.replace("dupes", "dupe") : null);
-    if (is === "untagged") pool = pool.filter((b) => b.tags.length === 0);
-    else if (is === "dead") pool = pool.filter((b) => b.dead);
-    else if (is === "dupe") pool = pool.filter((b) => b.dupeOf != null);
-    else if (is === "stale") pool = pool.filter(isStale);
-    if (ops.site) pool = pool.filter((b) => b.domain.includes(ops.site));
-    if (ops.folder) pool = pool.filter((b) => b.folder.toLowerCase().includes(ops.folder));
-    if (ops.minVisits) pool = pool.filter((b) => b.visitCount >= ops.minVisits);
-    const tg = ops.tag || tag; if (tg) pool = pool.filter((b) => b.tags.includes(tg));
-    // path-prefix folder match enables drill-down into subfolders
-    if (folder) pool = pool.filter((b) => b.folder === folder || b.folder.startsWith(folder + "/"));
-    let scored = rank(pool, text);
-    if (scope === "recent") scored = [...scored].sort((a, b) => (b.b.lastVisited || 0) - (a.b.lastVisited || 0));
-    else if (scope === "top") scored = [...scored].sort((a, b) => b.b.visitCount - a.b.visitCount);
-    else if (scope === "added") scored = [...scored].sort(byAdded);
-    let out = scored.slice(0, 100);
-    // secondary sort applied to the best 100 (stable: keeps rank order within groups)
-    if (sort === "folder") out = [...out].sort((a, b) => a.b.folder.localeCompare(b.b.folder));
-    else if (sort === "added") out = [...out].sort(byAdded);
-    else if (sort === "alpha") out = [...out].sort(byAlpha);
-    else if (sort === "domain") out = [...out].sort(byDomain);
-    return out;
-  }, [live, parsed, q, scope, folder, tag, sort, showPinned]);
+  const results = useMemo(
+    () => selectBookmarks({ library: live, query: q, scope, folder, tag, sort, showPinned }),
+    [live, q, scope, folder, tag, sort, showPinned],
+  );
   const readLaterItems = useMemo(() => {
     const order = new Map((meta.readLater || []).map((id, i) => [String(id), i]));
     return live.filter((b) => b.readLater).sort((a, b) => (order.get(String(a.id)) ?? 1e9) - (order.get(String(b.id)) ?? 1e9));
@@ -258,32 +235,26 @@ export default function App() {
 
   /* ── actions (persist → listeners refresh UI) ── */
   const open = (b, opts = {}) => { chrome.tabs.create({ url: b.url, active: !opts.background }); if (!opts.background) flash("Opened " + b.domain); };
-  const addTag = (ids, t) => { if (!t) return; patchMeta((m) => { ids.forEach((id) => { m.tags[id] = [...new Set([...(m.tags[id] || []), t])]; }); }); flash(`Tagged ${ids.length} #${t}`); };
-  const trashIds = (ids) => patchMeta((m) => { m.trashed = [...new Set([...m.trashed, ...ids.map(String)])]; });
+  const addTag = (ids, t) => { if (!t) return; patchMeta((m) => applyAddTag(m, ids, t)); flash(`Tagged ${ids.length} #${t}`); };
+  const trashIds = (ids) => patchMeta((m) => applyTrash(m, ids));
   const trash = (ids) => { trashIds(ids); setSel(new Set()); flash(`Moved ${ids.length} to Trash`, { label: "Undo", run: () => restore(ids) }); };
   const askTrash = (ids) => { if (ids.length > 20) setConfirm({ msg: `Delete ${ids.length} bookmarks? They go to Trash and can be restored.`, run: () => { trash(ids); setConfirm(null); } }); else trash(ids); };
-  const restore = (ids) => { patchMeta((m) => { m.trashed = m.trashed.filter((x) => !ids.map(String).includes(x)); }); flash(`Restored ${ids.length}`); };
+  const restore = (ids) => { patchMeta((m) => applyRestore(m, ids)); flash(`Restored ${ids.length}`); };
   const emptyTrash = async () => { const ids = [...meta.trashed]; await removeForever(ids); await patchMeta((m) => { m.trashed = []; ids.forEach((id) => delete m.tags[id]); }); flash(`Emptied Trash (${ids.length})`); };
   const togglePin = (ids) => {
     const sids = ids.map(String);
     const allPinned = sids.every((id) => (meta.pinned || []).map(String).includes(id));
-    patchMeta((m) => {
-      const cur = (m.pinned || []).map(String);
-      m.pinned = allPinned ? cur.filter((x) => !sids.includes(x)) : [...cur, ...sids.filter((id) => !cur.includes(id))];
-    });
+    patchMeta((m) => applyTogglePin(m, ids));
     flash(allPinned ? `Unpinned ${ids.length}` : `Pinned ${ids.length}`, { label: "Undo", run: () => togglePin(ids) });
   };
   const toggleReadLater = (ids) => {
     const sids = ids.map(String);
     const allLater = sids.every((id) => (meta.readLater || []).map(String).includes(id));
-    patchMeta((m) => {
-      const cur = (m.readLater || []).map(String);
-      m.readLater = allLater ? cur.filter((x) => !sids.includes(x)) : [...cur, ...sids.filter((id) => !cur.includes(id))];
-    });
+    patchMeta((m) => applyToggleReadLater(m, ids));
     flash(allLater ? `Removed ${ids.length} from read later` : `Saved ${ids.length} for later`, { label: "Undo", run: () => toggleReadLater(ids) });
   };
-  const archive = (ids) => { patchMeta((m) => { m.archived = [...new Set([...m.archived, ...ids.map(String)])]; }); setSel(new Set()); flash(`Archived ${ids.length}`, { label: "Undo", run: () => unarchive(ids) }); };
-  const unarchive = (ids) => { patchMeta((m) => { m.archived = m.archived.filter((x) => !ids.map(String).includes(x)); }); flash(`Unarchived ${ids.length}`); };
+  const archive = (ids) => { patchMeta((m) => applyArchive(m, ids)); setSel(new Set()); flash(`Archived ${ids.length}`, { label: "Undo", run: () => unarchive(ids) }); };
+  const unarchive = (ids) => { patchMeta((m) => applyUnarchive(m, ids)); flash(`Unarchived ${ids.length}`); };
   const move = async (ids, f) => {
     setMoveOpen(false);
     const prev = ids.map((id) => ({ id, folder: all.find((x) => String(x.id) === String(id))?.folder })).filter((p) => p.folder);
@@ -314,10 +285,8 @@ export default function App() {
   const reorderPinned = (fromId, toId) => {
     if (fromId == null || String(fromId) === String(toId)) return;
     const ids = pinned.map((b) => String(b.id));
-    const from = ids.indexOf(String(fromId)), to = ids.indexOf(String(toId));
-    if (from < 0 || to < 0) return;
-    ids.splice(to, 0, ids.splice(from, 1)[0]);
-    patchMeta((m) => { const cur = (m.pinned || []).map(String); m.pinned = [...ids, ...cur.filter((id) => !ids.includes(id))]; });
+    if (ids.indexOf(String(fromId)) < 0 || ids.indexOf(String(toId)) < 0) return;
+    patchMeta((m) => applyReorderPinned(m, ids, fromId, toId));
   };
   const clearFilters = () => { setQ(""); setFolder(null); setTag(null); setScope(DEFAULT_SCOPE); };
   const startBmDrag = (e, b) => { e.dataTransfer.setData("text/bops-bm", String(b.id)); e.dataTransfer.effectAllowed = "move"; setDraggingBm(true); };
@@ -341,13 +310,13 @@ export default function App() {
     to = (to || "").trim().toLowerCase();
     if (!to || to === from) return;
     const snap = snapshotTags((arr) => arr?.includes(from));
-    patchMeta((m) => { Object.keys(m.tags).forEach((id) => { if (m.tags[id]?.includes(from)) m.tags[id] = [...new Set(m.tags[id].map((t) => (t === from ? to : t)))]; }); });
+    patchMeta((m) => applyRenameTag(m, from, to));
     if (tag === from) setTag(to);
     flash(`Renamed #${from} → #${to}`, { label: "Undo", run: () => restoreTags(snap) });
   };
   const deleteTag = (t) => {
     const snap = snapshotTags((arr) => arr?.includes(t));
-    patchMeta((m) => { Object.keys(m.tags).forEach((id) => { if (m.tags[id]?.includes(t)) m.tags[id] = m.tags[id].filter((x) => x !== t); }); });
+    patchMeta((m) => applyDeleteTag(m, t));
     if (tag === t) setTag(null);
     flash(`Removed #${t}`, { label: "Undo", run: () => restoreTags(snap) });
   };
