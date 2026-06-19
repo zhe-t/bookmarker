@@ -519,6 +519,7 @@ export default function App() {
     { label: "Keyboard shortcuts and operators", hint: "?", run: () => { setHelpOpen(true); setCmd(false); } },
     { label: "Send feedback", run: () => { setFeedbackOpen(true); setCmd(false); } },
     ...(meta.filters || []).map((f) => ({ label: "Filter · " + f.name, run: () => applyFilter(f) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- action callbacks (askTrash/autoMerge/openAll/rescan) are recreated each render; including them would defeat the memo
   ], [dupGroups, issues, meta.filters, live, results.length]);
 
   const selArr = [...sel];
@@ -547,6 +548,18 @@ export default function App() {
     }
   };
 
+  // ⋯ menu items, each with an accelerator letter. Pressing the letter while the
+  // menu is open runs that item (see the menu-wrap onKeyDown below).
+  const menuItems = [
+    { key: "c", icon: <Ic.Scan size={13} />, label: "Cleanup", run: () => setMode("cleanup") },
+    { key: "s", icon: <Ic.Bars size={13} />, label: "Stats", run: () => setStatsOpen(true) },
+    { key: "i", icon: <Ic.Import size={13} />, label: "Import bookmarks", run: () => setGuide("import") },
+    { key: "e", icon: <Ic.Export size={13} />, label: "Export bookmarks", run: () => setGuide("export") },
+    { key: "t", sepBefore: true, icon: theme === "dark" ? <Ic.Sun size={13} /> : <Ic.Moon size={13} />, label: `Switch to ${theme === "dark" ? "light" : "dark"} theme`, run: () => setTheme(theme === "dark" ? "light" : "dark") },
+    { key: "g", icon: <Ic.Sliders size={13} />, label: "Settings", run: () => setSettingsOpen(true) },
+  ];
+  const runMenuItem = (it) => { it.run(); setMenuOpen(false); };
+
   return (
     <div data-theme={resolvedTheme} data-density={density} data-urls={showUrls ? "1" : "0"} style={accentVars}>
       <div className="app">
@@ -569,21 +582,27 @@ export default function App() {
                 <Ic.Plus size={13} /> Add
               </button>
               <button className="btn btn--secondary btn--lg btn--fill" onClick={() => setCmd(true)}><Ic.Command size={13} /> K</button>
-              <div className="menu-wrap" ref={menuRef}>
+              <div className="menu-wrap" ref={menuRef}
+                onKeyDown={menuOpen ? (e) => {
+                  if (e.metaKey || e.ctrlKey || e.altKey) return;
+                  const it = menuItems.find((m) => m.key === e.key.toLowerCase());
+                  if (it) { e.preventDefault(); e.stopPropagation(); runMenuItem(it); }
+                } : undefined}>
                 <button className="btn btn--secondary btn--lg btn--icon btn--fill" aria-label="More actions" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
                   <Ic.Dots size={15} />
                 </button>
                 {menuOpen && (
                   <div className="popover popover--down">
-                    <button className="popover-item" onClick={() => { setMode("cleanup"); setMenuOpen(false); }}><Ic.Scan size={13} /> Cleanup</button>
-                    <button className="popover-item" onClick={() => { setStatsOpen(true); setMenuOpen(false); }}><Ic.Bars size={13} /> Stats</button>
-                    <button className="popover-item" onClick={() => { setGuide("import"); setMenuOpen(false); }}><Ic.Import size={13} /> Import bookmarks</button>
-                    <button className="popover-item" onClick={() => { setGuide("export"); setMenuOpen(false); }}><Ic.Export size={13} /> Export bookmarks</button>
-                    <div className="ctx-sep" />
-                    <button className="popover-item" onClick={() => { setTheme(theme === "dark" ? "light" : "dark"); setMenuOpen(false); }}>
-                      {theme === "dark" ? <Ic.Sun size={13} /> : <Ic.Moon size={13} />} Switch to {theme === "dark" ? "light" : "dark"} theme
-                    </button>
-                    <button className="popover-item" onClick={() => { setSettingsOpen(true); setMenuOpen(false); }}><Ic.Sliders size={13} /> Settings</button>
+                    {menuItems.map((it) => (
+                      <React.Fragment key={it.key}>
+                        {it.sepBefore && <div className="ctx-sep" />}
+                        <button className="popover-item" onClick={() => runMenuItem(it)}>
+                          {it.icon}
+                          <span className="menu-label">{it.label}</span>
+                          <span className="kbd menu-key">{it.key.toUpperCase()}</span>
+                        </button>
+                      </React.Fragment>
+                    ))}
                   </div>
                 )}
               </div>
@@ -889,7 +908,9 @@ export default function App() {
           {cmd && (
             <div className="overlay" onClick={() => setCmd(false)}>
               <div className="modal" onClick={(e) => e.stopPropagation()}>
-                <Palette live={live} actions={paletteActions} onOpenBookmark={(b) => { open(b); setCmd(false); }} />
+                <Palette live={live} actions={paletteActions} pinned={pinned} suggestions={suggestions}
+                  onOpenBookmark={(b) => { open(b); setCmd(false); }} onAddSuggestion={(s) => { addSuggestion(s); setCmd(false); }}
+                  theme={resolvedTheme} onToggleTheme={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")} />
               </div>
             </div>
           )}
@@ -940,7 +961,7 @@ export default function App() {
           {statsOpen && (
             <div className="overlay" onClick={() => setStatsOpen(false)}>
               <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-                <StatsModal live={live} topTags={topTags} onOpen={(b) => { open(b); setStatsOpen(false); }} onClose={() => setStatsOpen(false)} />
+                <StatsModal live={live} onOpen={(b) => { open(b); setStatsOpen(false); }} onClose={() => setStatsOpen(false)} />
               </div>
             </div>
           )}
@@ -1041,6 +1062,7 @@ function Cleanup(p) {
   ];
   const active = tabs.find((t) => t[0] === tab); const rows = active[2]; const col = active[3];
   const shown = rows.slice(0, 150);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- shown is derived from rows (rows.slice), so [rows] is the real dependency
   const shownIds = useMemo(() => shown.map((b) => b.id), [rows]);
   const listRef = useRef(null);
   const canScroll = useScrollHint(listRef, [rows.length, tab]);

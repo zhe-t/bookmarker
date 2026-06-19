@@ -1,6 +1,0 @@
-dist
-node_modules
-coverage
-public/fonts
-package-lock.json
-docs/demo.gif

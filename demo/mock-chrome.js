@@ -5,6 +5,13 @@
 // The seed is shaped to exercise every cleanup category: a dead link, a
 // duplicate, several stale/untagged bookmarks, plus history-only domains that
 // surface as "add" suggestions.
+//
+// Scope: reads are faithful; mutations are best-effort. Add/edit reflect in the
+// in-memory tree, but move/remove/removeTree are no-ops and the dead-link
+// "rescan" is simulated — so destructive actions appear to work and then reset
+// on reload. Good enough for a demo; do not treat it as a real backend.
+
+import { DEFAULT } from "../src/lib/store.js";
 
 const DAY = 864e5;
 const now = Date.now();
@@ -108,7 +115,10 @@ const history = buildHistory();
 
 // ── chrome.storage (metadata Chrome can't store natively) ────────────────────
 const META_KEY = "bookmark-ops:meta:v1";
+// Spread DEFAULT so new fields added to the real store schema can't silently
+// drift out of the demo seed — only override what the demo needs to look alive.
 const seededMeta = {
+  ...DEFAULT,
   tags: {
     101: ["git", "code"],
     102: ["docs"],
@@ -121,12 +131,6 @@ const seededMeta = {
   readLater: ["203"],
   notes: { 103: "Hooks + reference" },
   dead: ["https://defunct-startup.example"],
-  archived: [],
-  trashed: [],
-  filters: [],
-  folderStyles: {},
-  similarOk: [],
-  suggestHidden: [],
   _ts: now,
 };
 const storageData = { local: { [META_KEY]: seededMeta }, sync: {} };
@@ -162,6 +166,8 @@ function findNode(nodes, id, parent = null) {
   return null;
 }
 
+let createSeq = 0; // monotonic so two same-tick creates never collide
+
 const bookmarks = {
   async getTree() {
     return structuredClone(tree);
@@ -172,7 +178,7 @@ const bookmarks = {
     return hit ? structuredClone(hit.node) : null;
   },
   async create({ parentId = "1", title, url }) {
-    const id = "9" + Math.floor((now % 1e6) + tree.length + title.length);
+    const id = "new-" + ++createSeq;
     const node = { id, parentId, title, url, dateAdded: now };
     const hit = findNode(tree, parentId);
     if (hit && hit.node.children) hit.node.children.push(node);
@@ -190,6 +196,16 @@ globalThis.chrome = {
   history: {
     async search() {
       return structuredClone(history);
+    },
+  },
+  // The real dead-link scan lives in the service worker, which replies to a
+  // { type: "scan", urls } message with { dead: [...urls] }. The demo has no
+  // service worker, so answer here with the seeded dead URLs — otherwise
+  // "Re-scan links" would call sendMessage on an undefined runtime and throw.
+  runtime: {
+    sendMessage(msg, cb) {
+      const dead = (msg?.urls || []).filter((u) => seededMeta.dead.includes(u));
+      if (cb) cb({ dead });
     },
   },
   storage: {

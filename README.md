@@ -13,6 +13,7 @@ npm run build      # outputs dist/
 ```
 
 Then in Chrome: `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select the `dist/` folder.
+(Not on the Chrome Web Store yet — load unpacked.)
 
 For live development with HMR:
 
@@ -30,6 +31,9 @@ above):
 ```bash
 npm run demo       # opens the dashboard at http://localhost:5174/demo/
 ```
+
+Mutations in the demo (adding, deleting, moving, re-scanning) are simulated in
+memory and reset on reload.
 
 ## Shortcuts
 
@@ -85,7 +89,6 @@ npm run dev        # extension build with HMR
 npm run demo       # standalone UI with mocked chrome.* + seed data
 npm test           # unit tests (Vitest) for src/lib
 npm run lint       # ESLint
-npm run format     # Prettier (writes changes)
 npm run build      # production extension build → dist/
 ```
 
@@ -103,7 +106,8 @@ requests, ~230 KB total.
 ## Contributing
 
 Issues and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md)
-and the [Code of Conduct](CODE_OF_CONDUCT.md).
+and the [Code of Conduct](CODE_OF_CONDUCT.md). For security reports, see
+[SECURITY.md](SECURITY.md).
 
 ## License
 

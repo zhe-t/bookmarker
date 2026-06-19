@@ -41,3 +41,14 @@
 .pin-chip.dragging { opacity: .4; }
 .pin-chip[draggable] { cursor: grab; }
 .pin-chip[draggable]:active { cursor: grabbing; }
+
+/* ── command-palette light/dark toggle (the sliding ball switch) ──────────── */
+.pal-theme { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); flex-shrink: 0; }
+.pal-theme .icon { flex-shrink: 0; }
+.pal-theme .set-toggle { width: 34px; height: 19px; }
+.pal-theme .set-knob { width: 14px; height: 14px; }
+.pal-theme .set-toggle.on .set-knob { transform: translateX(15px); }
+
+/* ── ⋯ menu accelerator letters ───────────────────────────────────────────── */
+.popover-item .menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.popover-item .menu-key { margin-left: auto; flex-shrink: 0; }

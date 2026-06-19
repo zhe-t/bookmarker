@@ -6,7 +6,7 @@ request.
 
 ## Getting started
 
-You need [Node.js](https://nodejs.org) 18+ and npm.
+You need [Node.js](https://nodejs.org) 20+ and npm (the test runner, Vitest 4, requires Node 20+).
 
 ```bash
 npm install
@@ -32,7 +32,7 @@ extension install, no real bookmarks touched — via the demo harness, which
 mocks the `chrome.*` APIs with seeded sample data:
 
 ```bash
-npm run demo       # serves the dashboard at http://localhost:5174
+npm run demo       # serves the dashboard at http://localhost:5174/demo/
 ```
 
 This is the fastest way to iterate on UI work and is how the README demo GIF is
@@ -60,7 +60,6 @@ See the README for how the data model maps onto Chrome's bookmark/history APIs.
 ```bash
 npm test           # run unit tests (Vitest)
 npm run lint       # ESLint
-npm run format     # Prettier (writes changes)
 npm run build      # production build, must succeed
 ```
 
@@ -72,8 +71,9 @@ locally first.
 - The codebase is JavaScript (ESM) + React function components.
 - Pure logic lives in `src/lib/` and should stay dependency-free and testable —
   if you add or change anything there, add or update a test in `test/`.
-- Match the surrounding style: ESLint + Prettier configs are in the repo; let
-  them settle formatting rather than hand-tuning.
+- Match the surrounding style: it favors compact, dense one-liners. ESLint
+  enforces correctness; there is intentionally **no autoformatter**, so mirror
+  the formatting of nearby code by hand.
 
 ## Submitting a pull request
 

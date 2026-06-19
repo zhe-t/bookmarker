@@ -213,4 +213,30 @@ describe("rank", () => {
     const ranked = rank(pool, "");
     expect(ranked[0].score).toBeGreaterThanOrEqual(ranked[1].score);
   });
+  it("never produces a NaN score when visitCount is missing", () => {
+    const ranked = rank([{ title: "x", domain: "x.com", tags: [], note: "", lastVisited: null }], "");
+    expect(Number.isNaN(ranked[0].score)).toBe(false);
+  });
+});
+
+describe("edge cases / hardening", () => {
+  it("urlKey leaves non-web schemes untouched (no scheme-loss collisions)", () => {
+    expect(urlKey("file:///Users/x/a.html")).toBe("file:///Users/x/a.html");
+    expect(urlKey("chrome://extensions/")).toBe("chrome://extensions/");
+  });
+  it("urlKey only strips the exact 'ref' param, not lookalikes", () => {
+    expect(urlKey("https://example.com/?referrer=x")).toBe("example.com/?referrer=x");
+    expect(urlKey("https://example.com/?reference=x")).toBe("example.com/?reference=x");
+  });
+  it("isStale always returns a real boolean", () => {
+    expect(isStale({ visitCount: 5, lastVisited: 0 })).toBe(false);
+    expect(isStale({ lastVisited: NOW })).toBe(true); // missing visitCount => never-visited
+    expect(typeof isStale({ visitCount: 1, lastVisited: NOW })).toBe("boolean");
+  });
+  it("ago treats future timestamps as 'today' (clock-skew tolerant)", () => {
+    expect(ago(NOW + 10 * DAY)).toBe("today");
+  });
+  it("healthScore returns 100 for an empty library (no divide-by-zero)", () => {
+    expect(healthScore([], { dead: [], dupes: [], stale: [], untagged: [] })).toBe(100);
+  });
 });

@@ -1,8 +1,9 @@
 import js from "@eslint/js";
 import globals from "globals";
 import react from "eslint-plugin-react";
+// Pinned to v5 on purpose: v7 adds experimental rules (refs, set-state-in-effect)
+// that flag working patterns in this codebase. Revisit before bumping to v7+.
 import reactHooks from "eslint-plugin-react-hooks";
-import prettier from "eslint-config-prettier";
 
 export default [
   { ignores: ["dist/**", "demo-dist/**", "node_modules/**", "coverage/**"] },
@@ -55,6 +56,4 @@ export default [
       globals: { ...globals.node, ...globals.vitest },
     },
   },
-
-  prettier,
 ];

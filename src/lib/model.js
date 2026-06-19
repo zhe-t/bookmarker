@@ -28,6 +28,9 @@ export function domainColor(domain) {
 export function urlKey(url) {
   try {
     const u = new URL(url);
+    // only canonicalize web URLs; leave file:/chrome:/etc. untouched so their
+    // scheme isn't dropped (which would collide distinct pages onto one key)
+    if (u.protocol !== "http:" && u.protocol !== "https:") return url;
     const params = [...u.searchParams.keys()];
     params.forEach((k) => { if (/^(utm_|fbclid|gclid|ref$)/i.test(k)) u.searchParams.delete(k); });
     const host = u.hostname.toLowerCase().replace(/^www\./, "");
@@ -65,7 +68,7 @@ export function parseQuery(raw) {
   return { ops, text: text.trim() };
 }
 
-export const isStale = (b) => b.visitCount === 0 || (b.lastVisited && Date.now() - b.lastVisited > YEAR);
+export const isStale = (b) => (b.visitCount ?? 0) === 0 || (!!b.lastVisited && Date.now() - b.lastVisited > YEAR);
 
 export function computeIssues(live) {
   const dead = [], dupes = [], stale = [], untagged = [];
@@ -100,7 +103,7 @@ export function rank(pool, text) {
       const m = fuzzy(text, b.title + " " + b.domain + " " + b.tags.join(" ") + " " + (b.note || ""));
       if (text && !m) return null;
       const rec = b.lastVisited ? Math.max(0, 1 - (Date.now() - b.lastVisited) / (400 * 864e5)) : 0;
-      return { b, score: (m ? m.score : 0) + rec * 6 + Math.log2(b.visitCount + 1) * 1.5, hits: m ? m.hits : new Set() };
+      return { b, score: (m ? m.score : 0) + rec * 6 + Math.log2((b.visitCount || 0) + 1) * 1.5, hits: m ? m.hits : new Set() };
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score);

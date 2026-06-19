@@ -5,7 +5,7 @@
 const KEY = "bookmark-ops:meta:v1";
 const SYNC_FLAG = "bops-sync";
 
-const DEFAULT = {
+export const DEFAULT = {
   tags: {},      // id -> [tag,...]
   pinned: [],    // ids pinned to the top of search (ordered)
   trashed: [],   // ids soft-deleted (hidden; "empty trash" really removes)
