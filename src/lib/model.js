@@ -91,6 +91,32 @@ export function healthScore(live, issues) {
   return Math.max(0, Math.min(100, Math.round(100 - pen)));
 }
 
+// Escape-key overlay priority: given the open flags, return the key naming the
+// topmost (highest-priority) open overlay, or null if none are open. The order
+// here is the single source of truth for which layer Escape closes first.
+// Note: selection-clear and cleanup→search are NOT overlays and stay in the
+// component as the final fallbacks after this returns null.
+const OVERLAY_ORDER = [
+  "cmd",
+  "ctx",
+  "bmModal",
+  "guide",
+  "helpOpen",
+  "feedbackOpen",
+  "folderStyleTarget",
+  "statsOpen",
+  "tourOpen",
+  "settingsOpen",
+  "confirm",
+  "moveOpen",
+  "folderOpen",
+  "menuOpen",
+];
+export function topOverlay(flags) {
+  for (const key of OVERLAY_ORDER) if (flags[key]) return key;
+  return null;
+}
+
 // stable secondary sorts offered in the sort dropdown
 export const byAdded = (a, b) => (b.b.dateAdded || 0) - (a.b.dateAdded || 0);
 export const byAlpha = (a, b) => (a.b.title || "").localeCompare(b.b.title || "");
@@ -107,4 +133,40 @@ export function rank(pool, text) {
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score);
+}
+
+// The bookmark search/selection pipeline: filter the library by scope, query
+// operators, tag, and folder; rank; apply the primary scope sort; slice to the
+// best 100; then apply the secondary sort. Returns ranked { b, score, hits }
+// objects (the shape `rank` produces and the result list consumes).
+export function selectBookmarks({ library, query, scope, folder, tag, sort, showPinned }) {
+  const { ops, text } = parseQuery(query);
+  let pool = library;
+  // pinned live in their own section while browsing (no query); hide them
+  // from the main list so they aren't shown twice. During search they stay.
+  if (!query && showPinned) pool = pool.filter((b) => !b.pinned);
+  if (scope === "issues") pool = pool.filter((b) => b.dead || b.dupeOf != null);
+  else if (scope === "later") pool = pool.filter((b) => b.readLater);
+  const is = ops.is || (["untagged", "dead", "dupes", "stale"].includes(scope) ? scope.replace("dupes", "dupe") : null);
+  if (is === "untagged") pool = pool.filter((b) => b.tags.length === 0);
+  else if (is === "dead") pool = pool.filter((b) => b.dead);
+  else if (is === "dupe") pool = pool.filter((b) => b.dupeOf != null);
+  else if (is === "stale") pool = pool.filter(isStale);
+  if (ops.site) pool = pool.filter((b) => b.domain.includes(ops.site));
+  if (ops.folder) pool = pool.filter((b) => b.folder.toLowerCase().includes(ops.folder));
+  if (ops.minVisits) pool = pool.filter((b) => b.visitCount >= ops.minVisits);
+  const tg = ops.tag || tag; if (tg) pool = pool.filter((b) => b.tags.includes(tg));
+  // path-prefix folder match enables drill-down into subfolders
+  if (folder) pool = pool.filter((b) => b.folder === folder || b.folder.startsWith(folder + "/"));
+  let scored = rank(pool, text);
+  if (scope === "recent") scored = [...scored].sort((a, b) => (b.b.lastVisited || 0) - (a.b.lastVisited || 0));
+  else if (scope === "top") scored = [...scored].sort((a, b) => b.b.visitCount - a.b.visitCount);
+  else if (scope === "added") scored = [...scored].sort(byAdded);
+  let out = scored.slice(0, 100);
+  // secondary sort applied to the best 100 (stable: keeps rank order within groups)
+  if (sort === "folder") out = [...out].sort((a, b) => a.b.folder.localeCompare(b.b.folder));
+  else if (sort === "added") out = [...out].sort(byAdded);
+  else if (sort === "alpha") out = [...out].sort(byAlpha);
+  else if (sort === "domain") out = [...out].sort(byDomain);
+  return out;
 }
