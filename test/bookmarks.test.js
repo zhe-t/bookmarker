@@ -134,4 +134,12 @@ describe("exportHtml", () => {
     expect(html).toContain("Tom &amp; &quot;Jerry&quot; &lt;b&gt;");
     expect(html).not.toContain("<b>"); // raw tag must be escaped
   });
+
+  it("does not throw on a title-less item and emits an empty title segment", () => {
+    let html;
+    expect(() => {
+      html = exportHtml([{ url: "https://a.com", title: undefined, tags: [], dateAdded: 1000 }]);
+    }).not.toThrow();
+    expect(html).toContain('TAGS=""></A>');
+  });
 });
