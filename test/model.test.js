@@ -20,6 +20,7 @@ import {
   YEAR,
   RECENCY_WINDOW,
 } from "../src/lib/model.js";
+import { faviconUrl } from "../src/ui/Favicon.jsx";
 
 const DAY = 864e5;
 // Fixed "now" so time-relative helpers are deterministic.
@@ -495,5 +496,24 @@ describe("selectBookmarks", () => {
       const r = selectBookmarks({ ...base, sort: "domain", library });
       expect(r[0].b.domain).toBe("apple.com");
     });
+  });
+});
+
+describe("faviconUrl", () => {
+  const ENCODED = encodeURIComponent("https://a.com/?q=1 2");
+
+  it("builds a chrome-extension URL with pageUrl and size=64", () => {
+    global.chrome = { runtime: { getURL: (p) => "chrome-extension://x" + p } };
+    const url = faviconUrl("https://a.com/?q=1 2");
+    expect(url).toContain("pageUrl=" + ENCODED);
+    expect(url).toContain("&size=64");
+    delete global.chrome;
+  });
+
+  it("returns null when chrome.runtime.getURL is absent", () => {
+    const saved = global.chrome;
+    global.chrome = undefined;
+    expect(faviconUrl("https://a.com/")).toBeNull();
+    global.chrome = saved;
   });
 });
