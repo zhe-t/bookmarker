@@ -4,6 +4,7 @@ import {
   fdate,
   greeting,
   domainColor,
+  initial,
   urlKey,
   fuzzy,
   parseQuery,
@@ -76,6 +77,17 @@ describe("domainColor", () => {
     expect(domainColor("github.com")).toBe("hsl(94 55% 45%)");
     expect(domainColor("")).toBe("hsl(0 55% 45%)");
     expect(domainColor(undefined)).toBe("hsl(0 55% 45%)");
+  });
+});
+
+describe("initial", () => {
+  it("uppercases the first character of the domain", () => {
+    expect(initial("github.com")).toBe("G");
+  });
+  it("falls back to '?' for empty/missing domains", () => {
+    expect(initial("")).toBe("?");
+    expect(initial(undefined)).toBe("?");
+    expect(initial(null)).toBe("?");
   });
 });
 

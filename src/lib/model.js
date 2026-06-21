@@ -15,6 +15,9 @@ export const fdate = (ts) => (ts ? new Date(ts).toLocaleDateString(undefined, { 
 export const greeting = (h = new Date().getHours()) =>
   h >= 5 && h < 12 ? "Good morning" : h >= 12 && h < 18 ? "Good afternoon" : "Good evening";
 
+// favicon fallback letter: first char of the domain, or "?" when absent
+export const initial = (domain) => ((domain || "")[0] || "?").toUpperCase();
+
 // deterministic color from a domain so favicons fall back to a colored initial
 export function domainColor(domain) {
   domain = domain || "";

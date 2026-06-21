@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { initial } from "../lib/model.js";
 
 // Chrome's _favicon API (MV3, needs the "favicon" permission). Falls back to a
 // deterministic colored initial when the favicon is missing or we're outside
@@ -26,7 +27,7 @@ export function Favicon({ b, size = 34 }) {
   }
   return (
     <div className="favicon" style={{ ...dim, background: b.color }}>
-      {(b.domain[0] || "?").toUpperCase()}
+      {initial(b.domain)}
     </div>
   );
 }
