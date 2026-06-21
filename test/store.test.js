@@ -196,6 +196,18 @@ describe("patchMeta", () => {
     const meta = await getMeta();
     expect(meta.pinned).toEqual(["z"]);
   });
+
+  it("deep-clones so nested edits don't leak into objects read earlier", async () => {
+    setSyncEnabled(false);
+    localArea[KEY] = { tags: { 1: ["a"] }, _ts: 1 };
+    const firstMeta = await getMeta(); // captured before the patch
+    await patchMeta((draft) => {
+      draft.tags["1"].push("b");
+    });
+    const stored = await getMeta();
+    expect(stored.tags["1"]).toEqual(["a", "b"]); // patch landed
+    expect(firstMeta.tags["1"]).toEqual(["a"]); // earlier read untouched
+  });
 });
 
 describe("pushToSync", () => {
