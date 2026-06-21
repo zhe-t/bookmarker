@@ -7,15 +7,17 @@ export const meta = {
   ],
 }
 
-// args = array of issue objects (from research-optimizations / docs backlog).
+// args = ordered array of issue IDs (e.g. ["OPT-001", ...]) OR full issue
+// objects. Each agent reads the canonical issue detail from
+// docs/optimization-issues.json (committed) by id, so args can stay small.
 // Runs SEQUENTIALLY on purpose: every agent shares the one working tree and many
 // issues touch the same files (App.jsx etc.), so parallelism would corrupt the
 // tree. Each issue is implemented, gated on `npm test` + `npm run lint`, and
 // committed atomically — a clean tree at the start of each step makes revert safe.
 
-const issues = Array.isArray(args) ? args : (args?.issues || [])
+const issues = Array.isArray(args) ? args : (args?.issues || args?.ids || [])
 if (!issues.length) {
-  log('No issues passed via args — nothing to do.')
+  log('No issue ids passed via args — nothing to do.')
   return { error: 'no issues provided', implemented: 0 }
 }
 
@@ -40,12 +42,16 @@ phase('Implement')
 
 const results = []
 for (let i = 0; i < issues.length; i++) {
-  const issue = issues[i]
-  const id = issue.id || `OPT-${String(i + 1).padStart(3, '0')}`
+  const entry = issues[i]
+  const id = typeof entry === 'string' ? entry : (entry.id || `OPT-${String(i + 1).padStart(3, '0')}`)
+  const inlineDetail = typeof entry === 'string' ? null : entry
 
   const r = await agent(
     `You are implementing EXACTLY ONE optimization in the bookmark.ops Chrome extension repo. The working tree is clean at git HEAD.\n\n` +
-      `ISSUE ${id} (JSON):\n${JSON.stringify(issue, null, 2)}\n\n` +
+      `ISSUE: ${id}\n` +
+      (inlineDetail
+        ? `Details (JSON):\n${JSON.stringify(inlineDetail, null, 2)}\n\n`
+        : `Read the full issue spec from docs/optimization-issues.json (it is a JSON array; find the object whose "id" === "${id}"). Use its problem, proposed_change, and test_plan as your authoritative instructions.\n\n`) +
       `HARD RULES:\n` +
       `- Make the MINIMAL change that resolves this single issue. Do NOT change product behavior or add features beyond the issue. Do NOT touch unrelated files.\n` +
       `- Match the surrounding code style exactly (concise, comment density of neighbors).\n` +
