@@ -519,4 +519,55 @@ describe("computeSuggestions filters (via loadEnriched)", () => {
     const { suggestions } = await loadEnriched();
     expect(suggestions.length).toBe(8);
   });
+
+  it("sets similarTo and pathLabel when the history URL shares a domain with a saved bookmark", async () => {
+    // saved bookmark at /saved; history entry at /other on the same domain
+    const tree = [{ id: "0", title: "", children: [
+      { id: "1", parentId: "0", title: "Bookmarks bar", children: [
+        { id: "11", parentId: "1", title: "Saved Page", url: "https://twin.example/saved", dateAdded: 1000 },
+      ] },
+    ] }];
+    globalThis.chrome = {
+      bookmarks: { getTree: async () => structuredClone(tree) },
+      history: { search: async () => [
+        { url: "https://twin.example/other", title: "Other Page", visitCount: 10, lastVisitTime: NOW },
+      ] },
+      storage: {
+        local: { get: async (k) => ({ [k]: {} }) },
+        sync: { get: async () => ({}) },
+        onChanged: { addListener() {}, removeListener() {} },
+      },
+    };
+    const { suggestions } = await loadEnriched();
+    const s = suggestions.find((x) => x.domain === "twin.example");
+    expect(s).toBeTruthy();
+    expect(s.similarTo).toEqual({ title: "Saved Page", url: "https://twin.example/saved" });
+    expect(s.pathLabel).not.toBeNull();
+    expect(s.pathLabel).toBe("/other");
+  });
+
+  it("suppresses similarTo and pathLabel when the URL's key is in meta.similarOk", async () => {
+    const histUrl = "https://twin.example/other";
+    const tree = [{ id: "0", title: "", children: [
+      { id: "1", parentId: "0", title: "Bookmarks bar", children: [
+        { id: "11", parentId: "1", title: "Saved Page", url: "https://twin.example/saved", dateAdded: 1000 },
+      ] },
+    ] }];
+    globalThis.chrome = {
+      bookmarks: { getTree: async () => structuredClone(tree) },
+      history: { search: async () => [
+        { url: histUrl, title: "Other Page", visitCount: 10, lastVisitTime: NOW },
+      ] },
+      storage: {
+        local: { get: async (k) => ({ [k]: { similarOk: [urlKey(histUrl)] } }) },
+        sync: { get: async () => ({}) },
+        onChanged: { addListener() {}, removeListener() {} },
+      },
+    };
+    const { suggestions } = await loadEnriched();
+    const s = suggestions.find((x) => x.domain === "twin.example");
+    expect(s).toBeTruthy();
+    expect(s.similarTo).toBeNull();
+    expect(s.pathLabel).toBeNull();
+  });
 });
