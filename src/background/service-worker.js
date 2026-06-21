@@ -38,6 +38,7 @@ export function isScannable(url) {
 }
 
 export async function scan(urls, { fetchFn = fetch, batch = 12, timeoutMs = 6000 } = {}) {
+  urls = [...new Set(urls)]; // dedupe: avoid redundant fetches and duplicate dead entries
   const dead = [];
   for (let i = 0; i < urls.length; i += batch) {
     const slice = urls.slice(i, i + batch);

@@ -74,6 +74,13 @@ describe("scan", () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
+  it("(OPT-042) duplicate URLs are fetched once and appear once in dead", async () => {
+    const fetchFn = vi.fn(async () => { throw new Error("fail"); });
+    const dead = await scan(["https://x.com", "https://x.com"], { fetchFn });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(dead).toEqual(["https://x.com"]);
+  });
+
   it("(OPT-041) abort timer is cleared via finally even when fetchFn rejects synchronously", async () => {
     vi.useFakeTimers();
     const fetchFn = vi.fn(async () => { throw new Error("fail"); });
