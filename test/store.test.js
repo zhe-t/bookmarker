@@ -8,6 +8,7 @@ import {
   setMeta,
   patchMeta,
   pushToSync,
+  subscribe,
 } from "../src/lib/store.js";
 
 const KEY = "bookmark-ops:meta:v1";
@@ -18,6 +19,7 @@ const NOW = new Date("2026-06-18T12:00:00Z").getTime();
 let localArea;
 let syncArea;
 let lsStore;
+let onChangedHandlers; // handlers registered via chrome.storage.onChanged.addListener
 
 function makeArea(backing) {
   return {
@@ -39,7 +41,12 @@ beforeAll(() => {
     storage: {
       local: makeArea({}),
       sync: makeArea({}),
-      onChanged: { addListener() {}, removeListener() {} },
+      onChanged: {
+        addListener: (h) => onChangedHandlers.push(h),
+        removeListener: (h) => {
+          onChangedHandlers = onChangedHandlers.filter((x) => x !== h);
+        },
+      },
     },
   };
 });
@@ -54,6 +61,7 @@ beforeEach(() => {
   localArea = {};
   syncArea = {};
   lsStore = {};
+  onChangedHandlers = [];
   globalThis.chrome.storage.local = makeArea(localArea);
   globalThis.chrome.storage.sync = makeArea(syncArea);
 });
@@ -262,6 +270,33 @@ describe("pushToSync", () => {
     const r = await pushToSync();
     expect(r).toEqual({ oversize: true });
     expect(syncArea[KEY]).toBeUndefined();
+  });
+});
+
+describe("subscribe", () => {
+  it("invokes cb with newValue for a KEY change in local or sync, and nothing else", () => {
+    const cb = vi.fn();
+    subscribe(cb);
+    const handler = onChangedHandlers[0];
+
+    handler({ [KEY]: { newValue: { pinned: ["a"] } } }, "local");
+    expect(cb).toHaveBeenCalledWith({ pinned: ["a"] });
+
+    handler({ [KEY]: { newValue: { pinned: ["b"] } } }, "sync");
+    expect(cb).toHaveBeenLastCalledWith({ pinned: ["b"] });
+
+    cb.mockClear();
+    handler({ "other-key": { newValue: 1 } }, "local"); // wrong key
+    handler({ [KEY]: { newValue: { pinned: ["c"] } } }, "managed"); // wrong area
+    expect(cb).not.toHaveBeenCalled();
+  });
+
+  it("returns an unsubscribe function that removes the same handler", () => {
+    const cb = vi.fn();
+    const off = subscribe(cb);
+    const handler = onChangedHandlers[0];
+    off();
+    expect(onChangedHandlers).not.toContain(handler);
   });
 });
 
