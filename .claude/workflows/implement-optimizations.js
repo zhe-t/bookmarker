@@ -15,7 +15,11 @@ export const meta = {
 // tree. Each issue is implemented, gated on `npm test` + `npm run lint`, and
 // committed atomically — a clean tree at the start of each step makes revert safe.
 
-const issues = Array.isArray(args) ? args : (args?.issues || args?.ids || [])
+let parsedArgs = args
+if (typeof parsedArgs === 'string') {
+  try { parsedArgs = JSON.parse(parsedArgs) } catch { parsedArgs = parsedArgs.split(/[\s,]+/).filter(Boolean) }
+}
+const issues = Array.isArray(parsedArgs) ? parsedArgs : (parsedArgs?.issues || parsedArgs?.ids || [])
 if (!issues.length) {
   log('No issue ids passed via args — nothing to do.')
   return { error: 'no issues provided', implemented: 0 }
