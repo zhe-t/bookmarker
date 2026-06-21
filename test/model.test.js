@@ -434,6 +434,19 @@ describe("selectBookmarks", () => {
     it(">N visits filters by minimum visit count", () => {
       expect(ids(sel({ query: ">50 visits" })).sort()).toEqual(["1", "3", "8"]);
     });
+    it(">N visits excludes bookmarks with undefined visitCount", () => {
+      // b.visitCount >= ops.minVisits is NaN-false for undefined, so the unvisited one drops
+      const lib2 = [
+        { ...bm({ id: "u", title: "Unvisited" }), visitCount: undefined },
+        bm({ id: "v", title: "Visited", visitCount: 5 }),
+      ];
+      const r = selectBookmarks({ library: lib2, query: ">2 visits", scope: "all", folder: null, tag: null, sort: "best", showPinned: false });
+      expect(r.map((x) => x.b.id)).toEqual(["v"]);
+    });
+    it("is: operator overrides scope (is:dead filters even when scope is all)", () => {
+      // ops.is takes precedence over scope-derived is, so the dead one is kept under scope:all
+      expect(ids(sel({ query: "is:dead", scope: "all" }))).toEqual(["4"]);
+    });
   });
 
   it("tag arg filters by tag", () => {
