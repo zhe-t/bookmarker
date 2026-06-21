@@ -1,6 +1,8 @@
 // Pure, dependency-free helpers shared across the extension.
 
 export const YEAR = 365 * 864e5;
+// recency decay window for rank(): visits older than this contribute nothing
+export const RECENCY_WINDOW = 400 * 864e5;
 
 export const ago = (ts) => {
   if (!ts) return "never";
@@ -134,7 +136,7 @@ export function rank(pool, text) {
     .map((b) => {
       const m = fuzzy(text, b.title + " " + b.domain + " " + b.tags.join(" ") + " " + (b.note || ""));
       if (text && !m) return null;
-      const rec = b.lastVisited ? Math.max(0, 1 - (Date.now() - b.lastVisited) / (400 * 864e5)) : 0;
+      const rec = b.lastVisited ? Math.max(0, 1 - (Date.now() - b.lastVisited) / RECENCY_WINDOW) : 0;
       return { b, score: (m ? m.score : 0) + rec * 6 + Math.log2((b.visitCount || 0) + 1) * 1.5, hits: m ? m.hits : new Set() };
     })
     .filter(Boolean)

@@ -18,6 +18,7 @@ import {
   selectBookmarks,
   topOverlay,
   YEAR,
+  RECENCY_WINDOW,
 } from "../src/lib/model.js";
 
 const DAY = 864e5;
@@ -235,6 +236,16 @@ describe("rank", () => {
   it("never produces a NaN score when visitCount is missing", () => {
     const ranked = rank([{ title: "x", domain: "x.com", tags: [], note: "", lastVisited: null }], "");
     expect(Number.isNaN(ranked[0].score)).toBe(false);
+  });
+  it("decays recency to zero at exactly RECENCY_WINDOW and is maximal at NOW", () => {
+    const fresh = { title: "fresh", domain: "f.com", tags: [], note: "", visitCount: 0, lastVisited: NOW };
+    const edge = { title: "edge", domain: "e.com", tags: [], note: "", visitCount: 0, lastVisited: NOW - RECENCY_WINDOW };
+    const ranked = rank([edge, fresh], "");
+    // score here is purely recency*6 (no query, no visits): edge → 0, fresh → 6
+    const byTitle = Object.fromEntries(ranked.map((r) => [r.b.title, r.score]));
+    expect(byTitle.edge).toBeCloseTo(0);
+    expect(byTitle.fresh).toBeCloseTo(6);
+    expect(ranked[0].b.title).toBe("fresh");
   });
 });
 
