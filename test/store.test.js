@@ -114,6 +114,24 @@ describe("getMeta", () => {
     const meta = await getMeta();
     expect(meta.notes).toEqual({ 1: "local" });
   });
+
+  it("returns a DEFAULT clone when both storage areas are empty", async () => {
+    setSyncEnabled(true); // also reads sync, which is empty too
+    const meta = await getMeta();
+    expect(meta).toEqual(DEFAULT);
+    expect(meta).not.toBe(DEFAULT); // fresh object, safe to mutate
+  });
+
+  it("returns DEFAULT (does not reject) when chrome.storage.local.get throws", async () => {
+    setSyncEnabled(false);
+    globalThis.chrome.storage.local = {
+      get: async () => {
+        throw new Error("storage unavailable");
+      },
+    };
+    const meta = await getMeta(); // readArea swallows the throw -> null
+    expect(meta).toEqual(DEFAULT);
+  });
 });
 
 describe("setMeta", () => {
