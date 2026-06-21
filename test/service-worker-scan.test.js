@@ -73,4 +73,12 @@ describe("scan", () => {
     expect(dead).toEqual([]);
     expect(fetchFn).not.toHaveBeenCalled();
   });
+
+  it("(OPT-041) abort timer is cleared via finally even when fetchFn rejects synchronously", async () => {
+    vi.useFakeTimers();
+    const fetchFn = vi.fn(async () => { throw new Error("fail"); });
+    await scan(["https://a.com", "https://b.com"], { fetchFn, timeoutMs: 6000 });
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
 });
