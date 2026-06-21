@@ -508,6 +508,19 @@ describe("computeSuggestions filters (via loadEnriched)", () => {
     expect(domains).toContain("visible.example");
   });
 
+  it("excludes a URL that passes ^https?: but throws in new URL (malformed-http catch path)", async () => {
+    installSuggestions({
+      history: [
+        { url: "http://", title: "Broken", visitCount: 9, lastVisitTime: NOW },
+        { url: "https://good.example/", title: "Good", visitCount: 5, lastVisitTime: NOW },
+      ],
+    });
+    const { suggestions } = await loadEnriched();
+    const domains = suggestions.map((s) => s.domain);
+    expect(domains).not.toContain(""); // malformed URL yields no domain entry
+    expect(domains).toContain("good.example"); // valid URL still appears
+  });
+
   it("caps suggestions at 8 items even when more qualifying domains exist", async () => {
     const history = Array.from({ length: 12 }, (_, i) => ({
       url: `https://d${i}.example/`,
