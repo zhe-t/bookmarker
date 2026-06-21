@@ -19,14 +19,16 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
 // not HTTP 404s. This is an inherent browser limitation, surfaced honestly.
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "scan") {
-    scan(msg.urls || []).then((dead) => {
-      chrome.storage.local.get(KEY).then((r) => {
+    (async () => {
+      const dead = await scan(msg.urls || []).catch(() => []);
+      try {
+        const r = await chrome.storage.local.get(KEY);
         const meta = r[KEY] || {};
         meta.dead = dead;
-        chrome.storage.local.set({ [KEY]: meta });
-      });
+        await chrome.storage.local.set({ [KEY]: meta });
+      } catch { /* quota or other storage error — still respond */ }
       sendResponse({ dead });
-    }).catch(() => sendResponse({ dead: [] }));
+    })();
     return true; // async
   }
 });
