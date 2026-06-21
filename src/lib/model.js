@@ -125,6 +125,8 @@ export function topOverlay(flags) {
 export const byAdded = (a, b) => (b.b.dateAdded || 0) - (a.b.dateAdded || 0);
 export const byAlpha = (a, b) => (a.b.title || "").localeCompare(b.b.title || "");
 export const byDomain = (a, b) => (a.b.domain || "").localeCompare(b.b.domain || "") || byAdded(a, b);
+// copy-then-sort so the underlying array stays untouched and the sort is stable
+const stableSort = (arr, cmp) => [...arr].sort(cmp);
 
 // rank a pool by fuzzy match + recency + frequency
 export function rank(pool, text) {
@@ -163,14 +165,14 @@ export function selectBookmarks({ library, query, scope, folder, tag, sort, show
   // path-prefix folder match enables drill-down into subfolders
   if (folder) pool = pool.filter((b) => b.folder === folder || b.folder.startsWith(folder + "/"));
   let scored = rank(pool, text);
-  if (scope === "recent") scored = [...scored].sort((a, b) => (b.b.lastVisited || 0) - (a.b.lastVisited || 0));
-  else if (scope === "top") scored = [...scored].sort((a, b) => b.b.visitCount - a.b.visitCount);
-  else if (scope === "added") scored = [...scored].sort(byAdded);
+  if (scope === "recent") scored = stableSort(scored, (a, b) => (b.b.lastVisited || 0) - (a.b.lastVisited || 0));
+  else if (scope === "top") scored = stableSort(scored, (a, b) => b.b.visitCount - a.b.visitCount);
+  else if (scope === "added") scored = stableSort(scored, byAdded);
   let out = scored.slice(0, 100);
   // secondary sort applied to the best 100 (stable: keeps rank order within groups)
-  if (sort === "folder") out = [...out].sort((a, b) => a.b.folder.localeCompare(b.b.folder));
-  else if (sort === "added") out = [...out].sort(byAdded);
-  else if (sort === "alpha") out = [...out].sort(byAlpha);
-  else if (sort === "domain") out = [...out].sort(byDomain);
+  if (sort === "folder") out = stableSort(out, (a, b) => a.b.folder.localeCompare(b.b.folder));
+  else if (sort === "added") out = stableSort(out, byAdded);
+  else if (sort === "alpha") out = stableSort(out, byAlpha);
+  else if (sort === "domain") out = stableSort(out, byDomain);
   return out;
 }
