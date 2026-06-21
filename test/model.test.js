@@ -230,6 +230,12 @@ describe("edge cases / hardening", () => {
     expect(urlKey("https://example.com/?referrer=x")).toBe("example.com/?referrer=x");
     expect(urlKey("https://example.com/?reference=x")).toBe("example.com/?reference=x");
   });
+  it("urlKey strips exact fbclid/gclid but not lookalike prefixes", () => {
+    expect(urlKey("https://e.com/?fbclid=1")).toBe("e.com/");
+    expect(urlKey("https://e.com/?fbclidx=1")).toBe("e.com/?fbclidx=1");
+    expect(urlKey("https://e.com/?gclid=1")).toBe("e.com/");
+    expect(urlKey("https://e.com/?gclide=1")).toBe("e.com/?gclide=1");
+  });
   it("isStale always returns a real boolean", () => {
     expect(isStale({ visitCount: 5, lastVisited: 0 })).toBe(false);
     expect(isStale({ lastVisited: NOW })).toBe(true); // missing visitCount => never-visited

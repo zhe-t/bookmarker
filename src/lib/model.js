@@ -32,7 +32,7 @@ export function urlKey(url) {
     // scheme isn't dropped (which would collide distinct pages onto one key)
     if (u.protocol !== "http:" && u.protocol !== "https:") return url;
     const params = [...u.searchParams.keys()];
-    params.forEach((k) => { if (/^(utm_|fbclid|gclid|ref$)/i.test(k)) u.searchParams.delete(k); });
+    params.forEach((k) => { if (/^(utm_|fbclid$|gclid$|ref$)/i.test(k)) u.searchParams.delete(k); });
     const host = u.hostname.toLowerCase().replace(/^www\./, "");
     const path = u.pathname.replace(/\/+$/, "") || "/";
     const qs = u.searchParams.toString();
