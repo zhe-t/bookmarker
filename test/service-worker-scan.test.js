@@ -2,9 +2,15 @@ import { describe, it, expect, vi } from "vitest";
 
 // Set up chrome stub before the service-worker module executes its top-level
 // listener registrations (module evaluation order requires this to be first).
+let capturedMessageHandler = null;
 const chromeMock = {
   commands: { onCommand: { addListener: vi.fn() } },
-  runtime: { onInstalled: { addListener: vi.fn() }, onMessage: { addListener: vi.fn() }, getURL: (p) => p },
+  runtime: {
+    onInstalled: { addListener: vi.fn() },
+    onMessage: { addListener: vi.fn((fn) => { capturedMessageHandler = fn; }) },
+    getURL: (p) => p,
+  },
+  storage: { local: { get: vi.fn(async () => ({})), set: vi.fn(async () => {}) } },
   tabs: { create: vi.fn() },
 };
 globalThis.chrome = chromeMock;
@@ -87,5 +93,32 @@ describe("scan", () => {
     await scan(["https://a.com", "https://b.com"], { fetchFn, timeoutMs: 6000 });
     expect(vi.getTimerCount()).toBe(0);
     vi.useRealTimers();
+  });
+});
+
+describe("(OPT-043) message handler guards non-array urls", () => {
+  it("calls sendResponse({ dead: [] }) when urls is a string (not array)", async () => {
+    const sendResponse = vi.fn();
+    capturedMessageHandler({ type: "scan", urls: "oops" }, {}, sendResponse);
+    // wait for async IIFE to settle
+    await new Promise((r) => setTimeout(r, 0));
+    expect(sendResponse).toHaveBeenCalledWith({ dead: [] });
+  });
+
+  it("calls sendResponse({ dead: [] }) when urls is undefined", async () => {
+    const sendResponse = vi.fn();
+    capturedMessageHandler({ type: "scan", urls: undefined }, {}, sendResponse);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(sendResponse).toHaveBeenCalledWith({ dead: [] });
+  });
+
+  it("does not throw when urls is an object", async () => {
+    const sendResponse = vi.fn();
+    await expect(
+      new Promise((resolve) => {
+        capturedMessageHandler({ type: "scan", urls: { length: 1, 0: "https://x.com" } }, {}, (r) => { sendResponse(r); resolve(); });
+      })
+    ).resolves.toBeUndefined();
+    expect(sendResponse).toHaveBeenCalledWith({ dead: [] });
   });
 });

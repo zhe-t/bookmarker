@@ -20,7 +20,7 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "scan") {
     (async () => {
-      const dead = await scan(msg.urls || []).catch(() => []);
+      const dead = await scan(Array.isArray(msg.urls) ? msg.urls : []).catch(() => []);
       try {
         const r = await chrome.storage.local.get(KEY);
         const meta = r[KEY] || {};
