@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { loadEnriched, exportJson, exportHtml } from "../src/lib/bookmarks.js";
 import { urlKey } from "../src/lib/model.js";
 
@@ -110,6 +110,31 @@ describe("loadEnriched", () => {
     // a field not present in our partial META still exists via DEFAULT
     expect(meta.filters).toEqual([]);
     expect(meta.folderStyles).toEqual({});
+  });
+});
+
+describe("walk fallbacks for legacy/imported nodes", () => {
+  it("defaults a missing dateAdded to now and an empty title to the url host", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const tree = [{ id: "0", title: "", children: [
+      { id: "1", parentId: "0", title: "Bookmarks bar", children: [
+        { id: "103", parentId: "1", title: "No Date", url: "https://nodate.example/x" }, // missing dateAdded
+        { id: "104", parentId: "1", title: "", url: "https://www.foo.example/x", dateAdded: 5000 }, // empty title
+      ] },
+    ] }];
+    const prev = globalThis.chrome.bookmarks.getTree;
+    globalThis.chrome.bookmarks.getTree = async () => structuredClone(tree);
+    try {
+      const { all } = await loadEnriched();
+      const byId = Object.fromEntries(all.map((b) => [b.id, b]));
+      expect(byId["103"].dateAdded).toBe(NOW);
+      expect(Number.isFinite(byId["103"].dateAdded) && byId["103"].dateAdded > 0).toBe(true);
+      expect(byId["104"].title).toBe("foo.example");
+    } finally {
+      globalThis.chrome.bookmarks.getTree = prev;
+      vi.useRealTimers();
+    }
   });
 });
 
