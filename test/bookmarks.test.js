@@ -178,4 +178,10 @@ describe("exportHtml", () => {
     expect(html).not.toContain('ADD_DATE="NaN"');
     expect(html).toMatch(/ADD_DATE="\d+"/);
   });
+
+  it("converts dateAdded to seconds and comma-joins tags", () => {
+    const html = exportHtml([{ url: "https://a.com", title: "x", tags: ["x", "y"], dateAdded: 1700000000000 }]);
+    expect(html).toContain('ADD_DATE="1700000000"');
+    expect(html).toContain('TAGS="x,y"');
+  });
 });
