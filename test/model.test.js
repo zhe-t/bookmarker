@@ -129,6 +129,12 @@ describe("fuzzy", () => {
     const mid = fuzzy("y", "my react");
     expect(boundary.score).toBeGreaterThan(mid.score);
   });
+  it("records hits for a non-contiguous subsequence", () => {
+    expect(fuzzy("ac", "abc").hits).toEqual(new Set([0, 2]));
+  });
+  it("scores a contiguous match higher than a spread-out one", () => {
+    expect(fuzzy("ab", "ab").score).toBeGreaterThan(fuzzy("ab", "axb").score);
+  });
 });
 
 describe("parseQuery", () => {
