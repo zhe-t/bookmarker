@@ -442,3 +442,81 @@ describe("importHtml", () => {
     expect(bookmarkCreates.length).toBe(1000);
   });
 });
+
+// Helper: install a minimal chrome mock with custom history entries and meta,
+// using a single-node bookmark tree so loadEnriched has no saved URLs.
+function installSuggestions({ history, meta = {} }) {
+  const tree = [{ id: "0", title: "", children: [
+    { id: "1", parentId: "0", title: "Bookmarks bar", children: [] },
+  ] }];
+  globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+  globalThis.chrome = {
+    bookmarks: { getTree: async () => structuredClone(tree) },
+    history: { search: async () => structuredClone(history) },
+    storage: {
+      local: { get: async (k) => ({ [k]: meta }) },
+      sync: { get: async () => ({}) },
+      onChanged: { addListener() {}, removeListener() {} },
+    },
+  };
+}
+
+describe("computeSuggestions filters (via loadEnriched)", () => {
+  afterAll(() => {
+    delete globalThis.chrome;
+    delete globalThis.localStorage;
+  });
+
+  it("keeps one card per domain and picks the URL with the highest visit count", async () => {
+    installSuggestions({
+      history: [
+        { url: "https://multi.example/low",  title: "Low",  visitCount: 5,  lastVisitTime: NOW },
+        { url: "https://multi.example/high", title: "High", visitCount: 20, lastVisitTime: NOW },
+        { url: "https://other.example/",     title: "Other", visitCount: 8, lastVisitTime: NOW },
+      ],
+    });
+    const { suggestions } = await loadEnriched();
+    const domains = suggestions.map((s) => s.domain);
+    expect(domains.filter((d) => d === "multi.example")).toHaveLength(1);
+    const multi = suggestions.find((s) => s.domain === "multi.example");
+    expect(multi.url).toBe("https://multi.example/high"); // higher-visit URL wins
+  });
+
+  it("excludes URLs whose pathname includes /search with a query string", async () => {
+    installSuggestions({
+      history: [
+        { url: "https://engine.example/search?q=foo", title: "Search", visitCount: 10, lastVisitTime: NOW },
+        { url: "https://engine.example/results",      title: "Results", visitCount: 10, lastVisitTime: NOW },
+      ],
+    });
+    const { suggestions } = await loadEnriched();
+    const urls = suggestions.map((s) => s.url);
+    expect(urls).not.toContain("https://engine.example/search?q=foo");
+  });
+
+  it("excludes domains listed in meta.suggestHidden", async () => {
+    installSuggestions({
+      history: [
+        { url: "https://hidden.example/page", title: "Hidden", visitCount: 15, lastVisitTime: NOW },
+        { url: "https://visible.example/",    title: "Visible", visitCount: 8, lastVisitTime: NOW },
+      ],
+      meta: { suggestHidden: ["hidden.example"] },
+    });
+    const { suggestions } = await loadEnriched();
+    const domains = suggestions.map((s) => s.domain);
+    expect(domains).not.toContain("hidden.example");
+    expect(domains).toContain("visible.example");
+  });
+
+  it("caps suggestions at 8 items even when more qualifying domains exist", async () => {
+    const history = Array.from({ length: 12 }, (_, i) => ({
+      url: `https://d${i}.example/`,
+      title: `Site ${i}`,
+      visitCount: 10 + i,
+      lastVisitTime: NOW,
+    }));
+    installSuggestions({ history });
+    const { suggestions } = await loadEnriched();
+    expect(suggestions.length).toBe(8);
+  });
+});
