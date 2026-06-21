@@ -168,6 +168,16 @@ describe("setMeta", () => {
     expect(meta._ts).toBe(NOW); // stamp lives on the returned copy
   });
 
+  it("resolves and still stamps _ts when the local write rejects (quota best-effort)", async () => {
+    setSyncEnabled(false); // sync skipped, so oversize stays false
+    globalThis.chrome.storage.local.set = async () => {
+      throw new Error("QUOTA");
+    };
+    const { meta, oversize } = await setMeta({ pinned: ["a"] });
+    expect(oversize).toBe(false);
+    expect(meta._ts).toBe(NOW); // returned meta still stamped
+  });
+
   it("returns oversize:true and does NOT write sync when meta exceeds the 90KB budget", async () => {
     setSyncEnabled(true);
     const big = { notes: { 1: "x".repeat(90 * 1024 + 10) } };
