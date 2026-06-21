@@ -142,4 +142,10 @@ describe("exportHtml", () => {
     }).not.toThrow();
     expect(html).toContain('TAGS=""></A>');
   });
+
+  it("defaults ADD_DATE for an item with no dateAdded instead of emitting NaN", () => {
+    const html = exportHtml([{ url: "https://a.com", title: "x", tags: [] }]);
+    expect(html).not.toContain('ADD_DATE="NaN"');
+    expect(html).toMatch(/ADD_DATE="\d+"/);
+  });
 });
