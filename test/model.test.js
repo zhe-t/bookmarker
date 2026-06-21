@@ -18,6 +18,8 @@ import {
   selectBookmarks,
   topOverlay,
   matchMenuShortcut,
+  hostOf,
+  normalizeUrl,
   YEAR,
   RECENCY_WINDOW,
 } from "../src/lib/model.js";
@@ -117,6 +119,44 @@ describe("urlKey", () => {
   });
   it("returns the input unchanged when it is not a valid URL", () => {
     expect(urlKey("not a url")).toBe("not a url");
+  });
+});
+
+describe("hostOf", () => {
+  it("strips www and returns lowercased hostname for valid URLs", () => {
+    expect(hostOf("https://www.Example.com/path")).toBe("example.com");
+    expect(hostOf("https://github.com/user/repo")).toBe("github.com");
+  });
+  it("returns '' by default on invalid input", () => {
+    expect(hostOf("not a url")).toBe("");
+    expect(hostOf("")).toBe("");
+  });
+  it("returns the url as fallback when called with url as fallback (bookmarks.js contract)", () => {
+    expect(hostOf("not a url", "not a url")).toBe("not a url");
+  });
+  it("matches the host portion of urlKey for the same URL", () => {
+    const url = "https://WWW.Example.com/path";
+    expect(hostOf(url)).toBe(urlKey(url).split("/")[0]);
+  });
+});
+
+describe("normalizeUrl", () => {
+  it("prepends https:// for bare hosts", () => {
+    expect(normalizeUrl("example.com")).toBe("https://example.com/");
+  });
+  it("leaves valid https:// URLs unchanged", () => {
+    expect(normalizeUrl("https://example.com/path")).toBe("https://example.com/path");
+  });
+  it("rejects non-http(s) schemes", () => {
+    expect(normalizeUrl("chrome://settings")).toBeNull();
+    expect(normalizeUrl("javascript:alert(1)")).toBeNull();
+    expect(normalizeUrl("file:///etc/hosts")).toBeNull();
+  });
+  it("returns null for empty or whitespace input", () => {
+    expect(normalizeUrl("")).toBeNull();
+    expect(normalizeUrl("   ")).toBeNull();
+    expect(normalizeUrl(null)).toBeNull();
+    expect(normalizeUrl(undefined)).toBeNull();
   });
 });
 

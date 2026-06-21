@@ -1,15 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import * as Ic from "../ui/icons.jsx";
 import { useClickAway } from "../ui/hooks.js";
-
-const normalizeUrl = (raw) => {
-  const v = raw.trim();
-  if (!v) return null;
-  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : "https://" + v;
-  try { const u = new URL(candidate); return /^https?:$/.test(u.protocol) ? u.href : null; } catch { return null; }
-};
-
-const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; } };
+import { hostOf, normalizeUrl } from "../lib/model.js";
 
 // Guided add/edit form. App renders it inside .overlay/.modal and owns
 // Escape handling; this component owns validation and field focus.

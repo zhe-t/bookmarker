@@ -48,6 +48,22 @@ export function urlKey(url) {
   }
 }
 
+// Canonical host from a URL, www-stripped and lowercased.
+// fallback defaults to '' (BookmarkModal contract); pass url as fallback for
+// the bookmarks.js contract (return raw url on invalid input).
+export const hostOf = (url, fallback = "") => {
+  try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ""); } catch { return fallback; }
+};
+
+// Normalise a user-typed URL: prepend https:// for bare hosts, reject
+// non-http(s) schemes. Returns null for empty/whitespace/non-http input.
+export const normalizeUrl = (raw) => {
+  const v = String(raw || "").trim();
+  if (!v) return null;
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : "https://" + v;
+  try { const u = new URL(candidate); return /^https?:$/.test(u.protocol) ? u.href : null; } catch { return null; }
+};
+
 // fuzzy subsequence match → { score, hits:Set } or null
 export function fuzzy(query, text) {
   if (!query) return { score: 0, hits: new Set() };
