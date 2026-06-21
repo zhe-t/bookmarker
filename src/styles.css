@@ -291,7 +291,6 @@ input, select { font-family: inherit; outline: none; }
   border: 1px solid rgba(0, 0, 0, .12);
 }
 .favicon img { width: 18px; height: 18px; display: block; }
-.favicon--img { background: var(--inset); border: 1px solid var(--line); }
 
 .row-main { min-width: 0; flex: 1; }
 .row-title { font-size: 14.5px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
