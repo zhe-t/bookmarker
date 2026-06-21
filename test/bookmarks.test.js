@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import { loadEnriched, exportJson, exportHtml } from "../src/lib/bookmarks.js";
+import { loadEnriched, exportJson, exportHtml, importJson } from "../src/lib/bookmarks.js";
 import { urlKey } from "../src/lib/model.js";
 
 const DAY = 864e5;
@@ -274,5 +274,87 @@ describe("exportHtml", () => {
     const html = exportHtml([{ url: "https://a.com", title: "x", tags: ["x", "y"], dateAdded: 1700000000000 }]);
     expect(html).toContain('ADD_DATE="1700000000"');
     expect(html).toContain('TAGS="x,y"');
+  });
+});
+
+describe("importJson", () => {
+  // Each test installs its own chrome with a mutable meta store, an incrementing
+  // bookmarks.create, and a getTree (so ensureFolder can resolve/create folders).
+  function install(metaSeed = {}) {
+    let store = { ...metaSeed };
+    let nextId = 500;
+    const created = [];
+    const tree = [{ id: "0", title: "", children: [
+      { id: "1", parentId: "0", title: "Bookmarks bar", children: [] },
+    ] }];
+    globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+    globalThis.chrome = {
+      bookmarks: {
+        getTree: async () => structuredClone(tree),
+        create: async ({ parentId, title, url }) => {
+          const id = String(nextId++);
+          created.push({ id, parentId, title, url });
+          if (!url) tree[0].children[0].children.push({ id, parentId, title, children: [] });
+          return { id, parentId, title, url };
+        },
+      },
+      storage: {
+        local: { get: async (k) => ({ [k]: store }), set: async (obj) => { store = obj[KEY]; } },
+        sync: { get: async () => ({}) },
+        onChanged: { addListener() {}, removeListener() {} },
+      },
+    };
+    return { created, getStore: () => store };
+  }
+
+  it("creates missing bookmarks, returns the count, and skips URLs already present", async () => {
+    const { created } = install();
+    const existing = new Map([["https://have.example", "9"]]);
+    const text = JSON.stringify({ bookmarks: [
+      { url: "https://new.example", title: "New" },
+      { url: "https://have.example", title: "Dup" }, // already in existing => skipped
+      { title: "No URL" },                            // no url => skipped
+    ] });
+    const count = await importJson(text, existing);
+    expect(count).toBe(1);
+    expect(created.map((c) => c.url)).toEqual(["https://new.example"]);
+    expect(existing.get("https://new.example")).toBe("500");
+  });
+
+  it("routes a real top-level folder through ensureFolder but treats a CONTAINER name as no folder", async () => {
+    const { created } = install();
+    const text = JSON.stringify({ bookmarks: [
+      { url: "https://a.example", title: "A", folder: "Dev/Sub" }, // top = Dev => folder created
+      { url: "https://b.example", title: "B", folder: "Bookmarks bar" }, // container => folderName null
+    ] });
+    await importJson(text, new Map());
+    const devFolder = created.find((c) => !c.url && c.title === "Dev");
+    expect(devFolder).toBeTruthy();
+    const a = created.find((c) => c.url === "https://a.example");
+    expect(a.parentId).toBe(devFolder.id); // routed under the new Dev folder
+    const b = created.find((c) => c.url === "https://b.example");
+    expect(b.parentId).toBe("1"); // container name => straight into the bar, no folder
+  });
+
+  it("dedupes tags via Set union, sets note only when truthy, and pushes pinned/readLater ids once", async () => {
+    const { getStore } = install({ tags: { 9: ["keep"] }, notes: {}, pinned: [], readLater: [] });
+    const existing = new Map([["https://known.example", "9"]]);
+    const text = JSON.stringify({ bookmarks: [
+      { url: "https://known.example", tags: ["keep", "new"], note: "", pinned: true, readLater: true },
+      { url: "https://known.example", tags: ["new", "extra"], pinned: true, readLater: true }, // same id again
+    ] });
+    await importJson(text, existing);
+    const m = getStore();
+    expect(m.tags["9"].sort()).toEqual(["extra", "keep", "new"]); // union, no dupes
+    expect(m.notes["9"]).toBeUndefined();                          // empty note never written
+    expect(m.pinned).toEqual(["9"]);                               // pushed once despite two items
+    expect(m.readLater).toEqual(["9"]);
+  });
+
+  it("writes a note when truthy", async () => {
+    const { getStore } = install({ tags: {}, notes: {}, pinned: [], readLater: [] });
+    const text = JSON.stringify({ bookmarks: [{ url: "https://n.example", note: "hello" }] });
+    await importJson(text, new Map());
+    expect(getStore().notes["500"]).toBe("hello");
   });
 });
