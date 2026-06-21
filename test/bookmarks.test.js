@@ -139,6 +139,38 @@ describe("loadEnriched", () => {
     }
   });
 
+  it("rolls nested counts up to ancestors, includes empty user folders, sorts alpha, and drops empty containers", async () => {
+    // Dev (under the bar) holds a nested CI subfolder with one bookmark, so the
+    // descendant bumps both Dev and CI. Zed is a depth-1 user folder with no
+    // bookmarks (included with count 0); the depth-1 containers stay excluded.
+    const tree = [{ id: "0", title: "", children: [
+      { id: "1", parentId: "0", title: "Bookmarks bar", children: [
+        { id: "10", parentId: "1", title: "Dev", children: [
+          { id: "101", parentId: "10", title: "Top", url: "https://dev.example", dateAdded: 1000 },
+          { id: "20", parentId: "10", title: "CI", children: [
+            { id: "201", parentId: "20", title: "Pipe", url: "https://ci.example", dateAdded: 2000 },
+          ] },
+        ] },
+      ] },
+      { id: "30", parentId: "0", title: "Zed", children: [] }, // empty depth-1 user folder
+      { id: "2", parentId: "0", title: "Other bookmarks", children: [] }, // empty container must not appear
+    ] }];
+    const prev = globalThis.chrome.bookmarks.getTree;
+    globalThis.chrome.bookmarks.getTree = async () => structuredClone(tree);
+    try {
+      const { folderTree } = await loadEnriched();
+      expect(folderTree.map((f) => f.name)).toEqual(["Dev", "Zed"]); // alpha sort, no container
+      const dev = folderTree[0];
+      expect(dev.count).toBe(2); // CI's leaf bumps Dev too
+      const ci = dev.children.find((c) => c.name === "CI");
+      expect(ci.path).toBe("Dev/CI");
+      expect(ci.count).toBe(1);
+      expect(folderTree[1].count).toBe(0); // empty user folder included with zero
+    } finally {
+      globalThis.chrome.bookmarks.getTree = prev;
+    }
+  });
+
   it("returns meta merged with the schema defaults", async () => {
     const { meta } = await loadEnriched();
     // a field not present in our partial META still exists via DEFAULT
