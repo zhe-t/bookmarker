@@ -37,9 +37,8 @@ export function isScannable(url) {
   try { return /^https?:$/i.test(new URL(url).protocol); } catch { return false; }
 }
 
-async function scan(urls) {
+export async function scan(urls, { fetchFn = fetch, batch = 12, timeoutMs = 6000 } = {}) {
   const dead = [];
-  const batch = 12;
   for (let i = 0; i < urls.length; i += batch) {
     const slice = urls.slice(i, i + batch);
     await Promise.allSettled(
@@ -47,9 +46,12 @@ async function scan(urls) {
         if (!isScannable(url)) return; // skip file:/chrome:/javascript:/data: etc.
         try {
           const ctrl = new AbortController();
-          const to = setTimeout(() => ctrl.abort(), 6000);
-          await fetch(url, { method: "HEAD", mode: "no-cors", signal: ctrl.signal });
-          clearTimeout(to);
+          const to = setTimeout(() => ctrl.abort(), timeoutMs);
+          try {
+            await fetchFn(url, { method: "HEAD", mode: "no-cors", signal: ctrl.signal });
+          } finally {
+            clearTimeout(to);
+          }
         } catch {
           dead.push(url); // network-level failure → treat as unreachable
         }
