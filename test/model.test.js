@@ -102,6 +102,14 @@ describe("urlKey", () => {
     expect(urlKey("https://example.com/?utm_source=x&id=5")).toBe("example.com/?id=5");
     expect(urlKey("https://example.com/?ref=twitter")).toBe("example.com/");
   });
+  it("strips interleaved tracking params, keeping the real ones", () => {
+    expect(urlKey("https://x.com/p?utm_source=a&utm_medium=b&gclid=c&q=1")).toBe("x.com/p?q=1");
+    expect(urlKey("https://x.com/?fbclid=z")).toBe("x.com/");
+    expect(urlKey("https://x.com/?gclid=1&id=2")).toBe("x.com/?id=2");
+  });
+  it("rebuilds a multi-param query string stably", () => {
+    expect(urlKey("https://e.com/p?b=2&a=1")).toBe(urlKey("https://e.com/p?b=2&a=1"));
+  });
   it("treats www and trailing-slash variants of a page as equal", () => {
     expect(urlKey("https://www.example.com/a/")).toBe(urlKey("http://example.com/a"));
   });
