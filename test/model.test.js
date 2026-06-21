@@ -21,6 +21,7 @@ import {
   hostOf,
   normalizeUrl,
   isHttpUrl,
+  clampIndex,
   YEAR,
   RECENCY_WINDOW,
 } from "../src/lib/model.js";
@@ -593,6 +594,25 @@ describe("matchMenuShortcut", () => {
 
   it("returns null for an empty key", () => {
     expect(matchMenuShortcut(items, { key: "" })).toBeNull();
+  });
+});
+
+describe("clampIndex", () => {
+  it("clamps to len-1 when i exceeds the last index", () => {
+    expect(clampIndex(10, 3)).toBe(2);
+    expect(clampIndex(5, 1)).toBe(0);
+  });
+  it("returns 0 when len is 0 (empty list)", () => {
+    expect(clampIndex(0, 0)).toBe(0);
+    expect(clampIndex(5, 0)).toBe(0);
+  });
+  it("passes through a valid index unchanged", () => {
+    expect(clampIndex(2, 5)).toBe(2);
+    expect(clampIndex(0, 3)).toBe(0);
+  });
+  it("never returns a negative value", () => {
+    expect(clampIndex(-1, 3)).toBe(0);
+    expect(clampIndex(-99, 1)).toBe(0);
   });
 });
 

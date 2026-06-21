@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { fuzzy, ago } from "../lib/model.js";
+import { fuzzy, ago, clampIndex } from "../lib/model.js";
 import { Favicon } from "../ui/Favicon.jsx";
 import * as Ic from "../ui/icons.jsx";
 
@@ -66,10 +66,12 @@ export function Palette({
     else if (it.type === "s") onAddSuggestion?.(it.s);
   };
 
+  const sel = clampIndex(i, flat.length);
+
   const onKey = (e) => {
     if (e.key === "ArrowDown") { e.preventDefault(); setI((x) => Math.min(x + 1, flat.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setI((x) => Math.max(x - 1, 0)); }
-    else if (e.key === "Enter") { const it = flat[i]; if (it) runRow(it); }
+    else if (e.key === "Enter") { const it = flat[sel]; if (it) runRow(it); }
   };
 
   return (
@@ -95,23 +97,23 @@ export function Palette({
         {flat.map((it, idx) => {
           const sec = sectionFor(idx);
           const row = it.type === "a" ? (
-            <div role="option" aria-selected={idx === i} onMouseEnter={() => setI(idx)}
-              onClick={() => it.a.run()} className={`pal-row${idx === i ? " on" : ""}`}>
+            <div role="option" aria-selected={idx === sel} onMouseEnter={() => setI(idx)}
+              onClick={() => it.a.run()} className={`pal-row${idx === sel ? " on" : ""}`}>
               <Ic.Arrow size={13} />
               <span className="pal-label">{it.a.label}</span>
               {it.a.hint && <span className="kbd">{it.a.hint}</span>}
             </div>
           ) : it.type === "s" ? (
-            <div role="option" aria-selected={idx === i} onMouseEnter={() => setI(idx)}
-              onClick={() => onAddSuggestion?.(it.s)} className={`pal-row${idx === i ? " on" : ""}`}>
+            <div role="option" aria-selected={idx === sel} onMouseEnter={() => setI(idx)}
+              onClick={() => onAddSuggestion?.(it.s)} className={`pal-row${idx === sel ? " on" : ""}`}>
               <Favicon b={it.s} size={24} />
               <span className="pal-label">{it.s.title || it.s.domain}</span>
               <span className="pal-hint">{it.s.domain}</span>
               <Ic.Plus size={12} />
             </div>
           ) : (
-            <div role="option" aria-selected={idx === i} onMouseEnter={() => setI(idx)}
-              onClick={() => onOpenBookmark(it.b)} className={`pal-row${idx === i ? " on" : ""}`}>
+            <div role="option" aria-selected={idx === sel} onMouseEnter={() => setI(idx)}
+              onClick={() => onOpenBookmark(it.b)} className={`pal-row${idx === sel ? " on" : ""}`}>
               <Favicon b={it.b} size={24} />
               <span className="pal-label">{it.b.title}</span>
               <span className="pal-hint">{it.b.pinned && !q ? "pinned" : ago(it.b.lastVisited)}</span>

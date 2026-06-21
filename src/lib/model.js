@@ -142,6 +142,9 @@ export function topOverlay(flags) {
   return null;
 }
 
+// Clamp a palette selection index so it is always in [0, len-1] (or 0 when empty).
+export const clampIndex = (i, len) => Math.min(Math.max(0, i), Math.max(0, len - 1));
+
 // single-letter keyboard shortcut resolver for context menus:
 // returns the item matching e.key (case-insensitive) or null when a modifier
 // key is held, when no item declares .key, or when the entry is a separator
