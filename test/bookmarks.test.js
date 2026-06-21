@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import { loadEnriched, exportJson, exportHtml, importJson } from "../src/lib/bookmarks.js";
+import { loadEnriched, exportJson, exportHtml, importJson, importHtml } from "../src/lib/bookmarks.js";
 import { urlKey } from "../src/lib/model.js";
 
 const DAY = 864e5;
@@ -356,5 +356,89 @@ describe("importJson", () => {
     const text = JSON.stringify({ bookmarks: [{ url: "https://n.example", note: "hello" }] });
     await importJson(text, new Map());
     expect(getStore().notes["500"]).toBe("hello");
+  });
+});
+
+// Minimal DOMParser mock for the node environment: parses <A HREF="...">text</A> tags.
+function makeDOMParser() {
+  return {
+    parseFromString(html) {
+      const anchors = [];
+      const re = /<[Aa]\s[^>]*[Hh][Rr][Ee][Ff]=["']([^"']+)["'][^>]*>(.*?)<\/[Aa]>/gi;
+      let m;
+      while ((m = re.exec(html)) !== null) {
+        anchors.push({ href: m[1], textContent: m[2].trim() });
+      }
+      return { querySelectorAll: () => anchors };
+    },
+  };
+}
+
+describe("importHtml", () => {
+  function install() {
+    let nextId = 600;
+    const created = [];
+    const tree = [{ id: "0", title: "", children: [
+      { id: "1", parentId: "0", title: "Bookmarks bar", children: [] },
+    ] }];
+    globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+    globalThis.chrome = {
+      bookmarks: {
+        getTree: async () => structuredClone(tree),
+        create: async ({ parentId, title, url }) => {
+          const id = String(nextId++);
+          created.push({ id, parentId, title, url });
+          if (!url) tree[0].children[0].children.push({ id, parentId, title, children: [] });
+          return { id, parentId, title, url };
+        },
+      },
+      storage: {
+        local: { get: async (k) => ({ [k]: {} }), set: async () => {} },
+        sync: { get: async () => ({}) },
+        onChanged: { addListener() {}, removeListener() {} },
+      },
+    };
+    globalThis.DOMParser = class { parseFromString(...a) { return makeDOMParser().parseFromString(...a); } };
+    return { created };
+  }
+
+  afterAll(() => { delete globalThis.DOMParser; });
+
+  it("creates only the new link and returns 1 when one href is already in existingUrls", async () => {
+    const { created } = install();
+    const html = `<html><body>
+      <A HREF="https://new.example/page">New Page</A>
+      <A HREF="https://have.example">Have</A>
+    </body></html>`;
+    const existing = new Set(["https://have.example"]);
+    const count = await importHtml(html, existing);
+    expect(count).toBe(1);
+    expect(created.filter((c) => c.url).map((c) => c.url)).toEqual(["https://new.example/page"]);
+  });
+
+  it("returns 0 and never calls ensureFolder when all links are already present", async () => {
+    const { created } = install();
+    const html = `<A HREF="https://a.example">A</A>`;
+    const count = await importHtml(html, new Set(["https://a.example"]));
+    expect(count).toBe(0);
+    expect(created).toHaveLength(0); // ensureFolder never called => no folder created
+  });
+
+  it("uses the host as title when the link text is empty", async () => {
+    const { created } = install();
+    const html = `<A HREF="https://www.foo.example/bar"></A>`;
+    await importHtml(html, new Set());
+    const bm = created.find((c) => c.url === "https://www.foo.example/bar");
+    expect(bm).toBeTruthy();
+    expect(bm.title).toBe("foo.example"); // hostOf strips www and lowercases
+  });
+
+  it("slices to at most 1000 links", async () => {
+    const { created } = install();
+    const links = Array.from({ length: 1050 }, (_, i) => `<A HREF="https://x${i}.example">t</A>`).join("\n");
+    const html = `<html><body>${links}</body></html>`;
+    await importHtml(html, new Set());
+    const bookmarkCreates = created.filter((c) => c.url);
+    expect(bookmarkCreates.length).toBe(1000);
   });
 });
