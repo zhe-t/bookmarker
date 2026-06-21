@@ -1,4 +1,4 @@
-import { domainColor, urlKey, hostOf as _hostOf } from "./model.js";
+import { domainColor, urlKey, hostOf as _hostOf, isHttpUrl } from "./model.js";
 import { getMeta, patchMeta } from "./store.js";
 
 // bookmarks.js contract: fall back to the raw url on parse failure
@@ -230,7 +230,7 @@ const escapeHtml = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&am
 // Import a Netscape HTML string: create new bookmarks under an "Imported" folder, skipping URLs we already have.
 export async function importHtml(htmlString, existingUrls) {
   const doc = new DOMParser().parseFromString(htmlString, "text/html");
-  const links = [...doc.querySelectorAll("a")].filter((a) => a.href && !existingUrls.has(a.href));
+  const links = [...doc.querySelectorAll("a")].filter((a) => a.href && isHttpUrl(a.href) && !existingUrls.has(a.href));
   if (!links.length) return 0;
   const parentId = await ensureFolder("Imported");
   let n = 0;

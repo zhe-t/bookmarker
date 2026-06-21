@@ -433,6 +433,19 @@ describe("importHtml", () => {
     expect(bm.title).toBe("foo.example"); // hostOf strips www and lowercases
   });
 
+  it("rejects non-http(s) schemes (javascript:, data:) and creates only the https link", async () => {
+    const { created } = install();
+    const html = `<html><body>
+      <A HREF="https://safe.example/page">Safe</A>
+      <A HREF="javascript:alert(1)">Evil</A>
+    </body></html>`;
+    const count = await importHtml(html, new Set());
+    expect(count).toBe(1);
+    const urls = created.filter((c) => c.url).map((c) => c.url);
+    expect(urls).toEqual(["https://safe.example/page"]);
+    expect(urls).not.toContain("javascript:alert(1)");
+  });
+
   it("slices to at most 1000 links", async () => {
     const { created } = install();
     const links = Array.from({ length: 1050 }, (_, i) => `<A HREF="https://x${i}.example">t</A>`).join("\n");
