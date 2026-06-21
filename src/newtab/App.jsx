@@ -28,7 +28,7 @@ const ACCENTS = [
   { name: "teal", accent: "#43d9c4", ink: "#04201c" },
 ];
 const hexToRgba = (hex, a) => { const n = hex.replace("#", ""); return `rgba(${parseInt(n.slice(0, 2), 16)}, ${parseInt(n.slice(2, 4), 16)}, ${parseInt(n.slice(4, 6), 16)}, ${a})`; };
-const WAYBACK = (url) => `https://web.archive.org/web/*/${url}`;
+const WAYBACK = (url) => `https://web.archive.org/web/*/${encodeURIComponent(url)}`;
 // Chrome's fixed containers are not user categories; they live in the
 // folder dropdown but never as rail chips.
 const CONTAINER_RE = /^(bookmarks bar|other bookmarks|mobile bookmarks)$/i;
