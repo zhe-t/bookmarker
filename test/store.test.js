@@ -72,6 +72,14 @@ describe("META_KEY", () => {
   });
 });
 
+describe("DEFAULT", () => {
+  it("contains all fields needed as App.jsx pre-load placeholder (pinned, similarOk, suggestHidden)", () => {
+    expect(Array.isArray(DEFAULT.pinned)).toBe(true);
+    expect(Array.isArray(DEFAULT.similarOk)).toBe(true);
+    expect(Array.isArray(DEFAULT.suggestHidden)).toBe(true);
+  });
+});
+
 describe("getMeta", () => {
   it("merges stored partial meta over DEFAULT (every DEFAULT key present)", async () => {
     localArea[KEY] = { tags: { 101: ["git"] }, _ts: 5 };
