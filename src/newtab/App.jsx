@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { loadEnriched, moveTo, removeForever, exportHtml, exportJson, importHtml, importJson, updateBookmark, createBookmark, createFolder, renameFolder, deleteFolder } from "../lib/bookmarks.js";
-import { patchMeta, getSyncEnabled, setSyncEnabled, pushToSync, applyTogglePin, applyToggleReadLater, applyReorderPinned, applyAddTag, applyRenameTag, applyDeleteTag, applyTrash, applyRestore, applyArchive, applyUnarchive } from "../lib/store.js";
+import { DEFAULT, patchMeta, getSyncEnabled, setSyncEnabled, pushToSync, applyTogglePin, applyToggleReadLater, applyReorderPinned, applyAddTag, applyRenameTag, applyDeleteTag, applyTrash, applyRestore, applyArchive, applyUnarchive } from "../lib/store.js";
 import { ago, greeting, urlKey, computeIssues, healthScore, selectBookmarks, topOverlay } from "../lib/model.js";
 import { Palette } from "./Palette.jsx";
 import { BookmarkModal } from "./BookmarkModal.jsx";
@@ -28,7 +28,7 @@ const ACCENTS = [
   { name: "teal", accent: "#43d9c4", ink: "#04201c" },
 ];
 const hexToRgba = (hex, a) => { const n = hex.replace("#", ""); return `rgba(${parseInt(n.slice(0, 2), 16)}, ${parseInt(n.slice(2, 4), 16)}, ${parseInt(n.slice(4, 6), 16)}, ${a})`; };
-const WAYBACK = (url) => `https://web.archive.org/web/*/${url}`;
+const WAYBACK = (url) => `https://web.archive.org/web/*/${encodeURIComponent(url)}`;
 // Chrome's fixed containers are not user categories; they live in the
 // folder dropdown but never as rail chips.
 const CONTAINER_RE = /^(bookmarks bar|other bookmarks|mobile bookmarks)$/i;
@@ -42,7 +42,7 @@ function Hl({ text, hits, offset = 0 }) {
 
 export default function App() {
   const [all, setAll] = useState([]);
-  const [meta, setMeta] = useState({ tags: {}, trashed: [], archived: [], dead: [], filters: [], readLater: [], notes: {}, folderStyles: {} });
+  const [meta, setMeta] = useState({ ...DEFAULT });
   const [suggestions, setSuggestions] = useState([]);
   const [folderTree, setFolderTree] = useState([]);
   const [loading, setLoading] = useState(true);

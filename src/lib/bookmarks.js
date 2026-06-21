@@ -1,7 +1,8 @@
-import { domainColor, urlKey } from "./model.js";
+import { domainColor, urlKey, hostOf as _hostOf, isHttpUrl } from "./model.js";
 import { getMeta, patchMeta } from "./store.js";
 
-const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
+// bookmarks.js contract: fall back to the raw url on parse failure
+const hostOf = (url) => _hostOf(url, url);
 
 // Short, human-scannable path for a URL (first 1–2 segments, ellipsized).
 // Used to distinguish a suggestion from a same-domain bookmark.
@@ -159,7 +160,7 @@ export async function importJson(text, existing) {
   const items = Array.isArray(data.bookmarks) ? data.bookmarks : [];
   let created = 0;
   for (const it of items) {
-    if (!it.url || existing.has(it.url)) continue;
+    if (!it.url || !isHttpUrl(it.url) || existing.has(it.url)) continue;
     const top = it.folder ? it.folder.split("/")[0] : null;
     const folderName = top && !CONTAINER.test(top) ? top : null;
     try { const node = await createBookmark({ title: it.title || it.url, url: it.url, folderName }); existing.set(it.url, node.id); created++; } catch { /* skip */ }
@@ -220,16 +221,16 @@ export async function removeForever(ids) {
 // Export current live set to Netscape bookmark HTML.
 export function exportHtml(items) {
   const rows = items.map((b) =>
-    `    <DT><A HREF="${b.url}" ADD_DATE="${Math.floor(b.dateAdded / 1e3)}" TAGS="${b.tags.join(",")}">${escapeHtml(b.title)}</A>`
+    `    <DT><A HREF="${escapeHtml(b.url)}" ADD_DATE="${Math.floor((b.dateAdded || Date.now()) / 1e3)}" TAGS="${escapeHtml(b.tags.join(","))}">${escapeHtml(b.title)}</A>`
   ).join("\n");
   return `<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n<DL><p>\n${rows}\n</DL><p>`;
 }
-const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const escapeHtml = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 // Import a Netscape HTML string: create new bookmarks under an "Imported" folder, skipping URLs we already have.
 export async function importHtml(htmlString, existingUrls) {
   const doc = new DOMParser().parseFromString(htmlString, "text/html");
-  const links = [...doc.querySelectorAll("a")].filter((a) => a.href && !existingUrls.has(a.href));
+  const links = [...doc.querySelectorAll("a")].filter((a) => a.href && isHttpUrl(a.href) && !existingUrls.has(a.href));
   if (!links.length) return 0;
   const parentId = await ensureFolder("Imported");
   let n = 0;

@@ -6,7 +6,9 @@ import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
-  { ignores: ["dist/**", "demo-dist/**", "node_modules/**", "coverage/**"] },
+  // .claude/workflows holds orchestration scripts run by the Claude Code workflow
+  // runtime (top-level await/return), not app code — out of ESLint's scope.
+  { ignores: ["dist/**", "demo-dist/**", "node_modules/**", "coverage/**", ".claude/**"] },
 
   js.configs.recommended,
 

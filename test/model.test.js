@@ -4,6 +4,7 @@ import {
   fdate,
   greeting,
   domainColor,
+  initial,
   urlKey,
   fuzzy,
   parseQuery,
@@ -16,8 +17,15 @@ import {
   rank,
   selectBookmarks,
   topOverlay,
+  matchMenuShortcut,
+  hostOf,
+  normalizeUrl,
+  isHttpUrl,
+  clampIndex,
   YEAR,
+  RECENCY_WINDOW,
 } from "../src/lib/model.js";
+import { faviconUrl } from "../src/ui/Favicon.jsx";
 
 const DAY = 864e5;
 // Fixed "now" so time-relative helpers are deterministic.
@@ -72,6 +80,22 @@ describe("domainColor", () => {
   it("differs across domains", () => {
     expect(domainColor("github.com")).not.toBe(domainColor("example.org"));
   });
+  it("is deterministic for empty/undefined domain", () => {
+    expect(domainColor("github.com")).toBe("hsl(94 55% 45%)");
+    expect(domainColor("")).toBe("hsl(0 55% 45%)");
+    expect(domainColor(undefined)).toBe("hsl(0 55% 45%)");
+  });
+});
+
+describe("initial", () => {
+  it("uppercases the first character of the domain", () => {
+    expect(initial("github.com")).toBe("G");
+  });
+  it("falls back to '?' for empty/missing domains", () => {
+    expect(initial("")).toBe("?");
+    expect(initial(undefined)).toBe("?");
+    expect(initial(null)).toBe("?");
+  });
 });
 
 describe("urlKey", () => {
@@ -84,11 +108,76 @@ describe("urlKey", () => {
     expect(urlKey("https://example.com/?utm_source=x&id=5")).toBe("example.com/?id=5");
     expect(urlKey("https://example.com/?ref=twitter")).toBe("example.com/");
   });
+  it("strips interleaved tracking params, keeping the real ones", () => {
+    expect(urlKey("https://x.com/p?utm_source=a&utm_medium=b&gclid=c&q=1")).toBe("x.com/p?q=1");
+    expect(urlKey("https://x.com/?fbclid=z")).toBe("x.com/");
+    expect(urlKey("https://x.com/?gclid=1&id=2")).toBe("x.com/?id=2");
+  });
+  it("rebuilds a multi-param query string stably", () => {
+    expect(urlKey("https://e.com/p?b=2&a=1")).toBe(urlKey("https://e.com/p?b=2&a=1"));
+  });
   it("treats www and trailing-slash variants of a page as equal", () => {
     expect(urlKey("https://www.example.com/a/")).toBe(urlKey("http://example.com/a"));
   });
   it("returns the input unchanged when it is not a valid URL", () => {
     expect(urlKey("not a url")).toBe("not a url");
+  });
+});
+
+describe("hostOf", () => {
+  it("strips www and returns lowercased hostname for valid URLs", () => {
+    expect(hostOf("https://www.Example.com/path")).toBe("example.com");
+    expect(hostOf("https://github.com/user/repo")).toBe("github.com");
+  });
+  it("returns '' by default on invalid input", () => {
+    expect(hostOf("not a url")).toBe("");
+    expect(hostOf("")).toBe("");
+  });
+  it("returns the url as fallback when called with url as fallback (bookmarks.js contract)", () => {
+    expect(hostOf("not a url", "not a url")).toBe("not a url");
+  });
+  it("matches the host portion of urlKey for the same URL", () => {
+    const url = "https://WWW.Example.com/path";
+    expect(hostOf(url)).toBe(urlKey(url).split("/")[0]);
+  });
+});
+
+describe("normalizeUrl", () => {
+  it("prepends https:// for bare hosts", () => {
+    expect(normalizeUrl("example.com")).toBe("https://example.com/");
+  });
+  it("leaves valid https:// URLs unchanged", () => {
+    expect(normalizeUrl("https://example.com/path")).toBe("https://example.com/path");
+  });
+  it("rejects non-http(s) schemes", () => {
+    expect(normalizeUrl("chrome://settings")).toBeNull();
+    expect(normalizeUrl("javascript:alert(1)")).toBeNull();
+    expect(normalizeUrl("file:///etc/hosts")).toBeNull();
+  });
+  it("returns null for empty or whitespace input", () => {
+    expect(normalizeUrl("")).toBeNull();
+    expect(normalizeUrl("   ")).toBeNull();
+    expect(normalizeUrl(null)).toBeNull();
+    expect(normalizeUrl(undefined)).toBeNull();
+  });
+});
+
+describe("isHttpUrl", () => {
+  it("returns true for http and https URLs", () => {
+    expect(isHttpUrl("https://a.com")).toBe(true);
+    expect(isHttpUrl("http://b.org/path?q=1")).toBe(true);
+    expect(isHttpUrl("HTTP://CAPS.COM")).toBe(true);
+  });
+  it("returns false for non-http(s) schemes", () => {
+    expect(isHttpUrl("chrome://extensions/")).toBe(false);
+    expect(isHttpUrl("file:///etc/hosts")).toBe(false);
+    expect(isHttpUrl("javascript:alert(1)")).toBe(false);
+    expect(isHttpUrl("data:text/html,hi")).toBe(false);
+  });
+  it("returns false for empty, undefined, and null", () => {
+    expect(isHttpUrl("")).toBe(false);
+    expect(isHttpUrl(undefined)).toBe(false);
+    expect(isHttpUrl(null)).toBe(false);
   });
 });
 
@@ -110,6 +199,12 @@ describe("fuzzy", () => {
     const boundary = fuzzy("r", "my react");
     const mid = fuzzy("y", "my react");
     expect(boundary.score).toBeGreaterThan(mid.score);
+  });
+  it("records hits for a non-contiguous subsequence", () => {
+    expect(fuzzy("ac", "abc").hits).toEqual(new Set([0, 2]));
+  });
+  it("scores a contiguous match higher than a spread-out one", () => {
+    expect(fuzzy("ab", "ab").score).toBeGreaterThan(fuzzy("ab", "axb").score);
   });
 });
 
@@ -219,6 +314,16 @@ describe("rank", () => {
     const ranked = rank([{ title: "x", domain: "x.com", tags: [], note: "", lastVisited: null }], "");
     expect(Number.isNaN(ranked[0].score)).toBe(false);
   });
+  it("decays recency to zero at exactly RECENCY_WINDOW and is maximal at NOW", () => {
+    const fresh = { title: "fresh", domain: "f.com", tags: [], note: "", visitCount: 0, lastVisited: NOW };
+    const edge = { title: "edge", domain: "e.com", tags: [], note: "", visitCount: 0, lastVisited: NOW - RECENCY_WINDOW };
+    const ranked = rank([edge, fresh], "");
+    // score here is purely recency*6 (no query, no visits): edge → 0, fresh → 6
+    const byTitle = Object.fromEntries(ranked.map((r) => [r.b.title, r.score]));
+    expect(byTitle.edge).toBeCloseTo(0);
+    expect(byTitle.fresh).toBeCloseTo(6);
+    expect(ranked[0].b.title).toBe("fresh");
+  });
 });
 
 describe("edge cases / hardening", () => {
@@ -229,6 +334,12 @@ describe("edge cases / hardening", () => {
   it("urlKey only strips the exact 'ref' param, not lookalikes", () => {
     expect(urlKey("https://example.com/?referrer=x")).toBe("example.com/?referrer=x");
     expect(urlKey("https://example.com/?reference=x")).toBe("example.com/?reference=x");
+  });
+  it("urlKey strips exact fbclid/gclid but not lookalike prefixes", () => {
+    expect(urlKey("https://e.com/?fbclid=1")).toBe("e.com/");
+    expect(urlKey("https://e.com/?fbclidx=1")).toBe("e.com/?fbclidx=1");
+    expect(urlKey("https://e.com/?gclid=1")).toBe("e.com/");
+    expect(urlKey("https://e.com/?gclide=1")).toBe("e.com/?gclide=1");
   });
   it("isStale always returns a real boolean", () => {
     expect(isStale({ visitCount: 5, lastVisited: 0 })).toBe(false);
@@ -386,6 +497,19 @@ describe("selectBookmarks", () => {
     it(">N visits filters by minimum visit count", () => {
       expect(ids(sel({ query: ">50 visits" })).sort()).toEqual(["1", "3", "8"]);
     });
+    it(">N visits excludes bookmarks with undefined visitCount", () => {
+      // b.visitCount >= ops.minVisits is NaN-false for undefined, so the unvisited one drops
+      const lib2 = [
+        { ...bm({ id: "u", title: "Unvisited" }), visitCount: undefined },
+        bm({ id: "v", title: "Visited", visitCount: 5 }),
+      ];
+      const r = selectBookmarks({ library: lib2, query: ">2 visits", scope: "all", folder: null, tag: null, sort: "best", showPinned: false });
+      expect(r.map((x) => x.b.id)).toEqual(["v"]);
+    });
+    it("is: operator overrides scope (is:dead filters even when scope is all)", () => {
+      // ops.is takes precedence over scope-derived is, so the dead one is kept under scope:all
+      expect(ids(sel({ query: "is:dead", scope: "all" }))).toEqual(["4"]);
+    });
   });
 
   it("tag arg filters by tag", () => {
@@ -434,5 +558,79 @@ describe("selectBookmarks", () => {
       const r = selectBookmarks({ ...base, sort: "domain", library });
       expect(r[0].b.domain).toBe("apple.com");
     });
+  });
+});
+
+describe("matchMenuShortcut", () => {
+  const items = [
+    "sep",
+    { header: "Actions" },
+    { label: "Open", key: "o", run: () => {} },
+    { label: "Delete", key: "d", run: () => {} },
+    { label: "No key item", run: () => {} },
+  ];
+
+  it("returns the item whose key matches (case-insensitive)", () => {
+    expect(matchMenuShortcut(items, { key: "o" })).toBe(items[2]);
+    expect(matchMenuShortcut(items, { key: "O" })).toBe(items[2]);
+    expect(matchMenuShortcut(items, { key: "D" })).toBe(items[3]);
+  });
+
+  it("returns null when a modifier key is held", () => {
+    expect(matchMenuShortcut(items, { key: "o", metaKey: true })).toBeNull();
+    expect(matchMenuShortcut(items, { key: "o", ctrlKey: true })).toBeNull();
+    expect(matchMenuShortcut(items, { key: "o", altKey: true })).toBeNull();
+  });
+
+  it("skips 'sep' strings and {header} entries (no .key)", () => {
+    // 'sep' and the header object do not match any key
+    expect(matchMenuShortcut(items, { key: "s" })).toBeNull();
+    expect(matchMenuShortcut(items, { key: "A" })).toBeNull();
+  });
+
+  it("returns null when no item declares .key", () => {
+    expect(matchMenuShortcut([{ label: "X", run: () => {} }], { key: "x" })).toBeNull();
+  });
+
+  it("returns null for an empty key", () => {
+    expect(matchMenuShortcut(items, { key: "" })).toBeNull();
+  });
+});
+
+describe("clampIndex", () => {
+  it("clamps to len-1 when i exceeds the last index", () => {
+    expect(clampIndex(10, 3)).toBe(2);
+    expect(clampIndex(5, 1)).toBe(0);
+  });
+  it("returns 0 when len is 0 (empty list)", () => {
+    expect(clampIndex(0, 0)).toBe(0);
+    expect(clampIndex(5, 0)).toBe(0);
+  });
+  it("passes through a valid index unchanged", () => {
+    expect(clampIndex(2, 5)).toBe(2);
+    expect(clampIndex(0, 3)).toBe(0);
+  });
+  it("never returns a negative value", () => {
+    expect(clampIndex(-1, 3)).toBe(0);
+    expect(clampIndex(-99, 1)).toBe(0);
+  });
+});
+
+describe("faviconUrl", () => {
+  const ENCODED = encodeURIComponent("https://a.com/?q=1 2");
+
+  it("builds a chrome-extension URL with pageUrl and size=64", () => {
+    global.chrome = { runtime: { getURL: (p) => "chrome-extension://x" + p } };
+    const url = faviconUrl("https://a.com/?q=1 2");
+    expect(url).toContain("pageUrl=" + ENCODED);
+    expect(url).toContain("&size=64");
+    delete global.chrome;
+  });
+
+  it("returns null when chrome.runtime.getURL is absent", () => {
+    const saved = global.chrome;
+    global.chrome = undefined;
+    expect(faviconUrl("https://a.com/")).toBeNull();
+    global.chrome = saved;
   });
 });

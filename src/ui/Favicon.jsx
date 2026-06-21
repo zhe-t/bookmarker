@@ -1,9 +1,10 @@
 import React, { useState } from "react";
+import { initial } from "../lib/model.js";
 
 // Chrome's _favicon API (MV3, needs the "favicon" permission). Falls back to a
 // deterministic colored initial when the favicon is missing or we're outside
 // an extension context.
-const faviconUrl = (pageUrl) => {
+export const faviconUrl = (pageUrl) => {
   try {
     if (!chrome?.runtime?.getURL) return null;
     return chrome.runtime.getURL(`/_favicon/?pageUrl=${encodeURIComponent(pageUrl)}&size=64`);
@@ -26,7 +27,7 @@ export function Favicon({ b, size = 34 }) {
   }
   return (
     <div className="favicon" style={{ ...dim, background: b.color }}>
-      {(b.domain[0] || "?").toUpperCase()}
+      {initial(b.domain)}
     </div>
   );
 }

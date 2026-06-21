@@ -1,6 +1,8 @@
 // Pure, dependency-free helpers shared across the extension.
 
 export const YEAR = 365 * 864e5;
+// recency decay window for rank(): visits older than this contribute nothing
+export const RECENCY_WINDOW = 400 * 864e5;
 
 export const ago = (ts) => {
   if (!ts) return "never";
@@ -15,8 +17,12 @@ export const fdate = (ts) => (ts ? new Date(ts).toLocaleDateString(undefined, { 
 export const greeting = (h = new Date().getHours()) =>
   h >= 5 && h < 12 ? "Good morning" : h >= 12 && h < 18 ? "Good afternoon" : "Good evening";
 
+// favicon fallback letter: first char of the domain, or "?" when absent
+export const initial = (domain) => ((domain || "")[0] || "?").toUpperCase();
+
 // deterministic color from a domain so favicons fall back to a colored initial
 export function domainColor(domain) {
+  domain = domain || "";
   let h = 0;
   for (let i = 0; i < domain.length; i++) h = (h * 31 + domain.charCodeAt(i)) >>> 0;
   const hue = h % 360;
@@ -32,7 +38,7 @@ export function urlKey(url) {
     // scheme isn't dropped (which would collide distinct pages onto one key)
     if (u.protocol !== "http:" && u.protocol !== "https:") return url;
     const params = [...u.searchParams.keys()];
-    params.forEach((k) => { if (/^(utm_|fbclid|gclid|ref$)/i.test(k)) u.searchParams.delete(k); });
+    params.forEach((k) => { if (/^(utm_|fbclid$|gclid$|ref$)/i.test(k)) u.searchParams.delete(k); });
     const host = u.hostname.toLowerCase().replace(/^www\./, "");
     const path = u.pathname.replace(/\/+$/, "") || "/";
     const qs = u.searchParams.toString();
@@ -41,6 +47,25 @@ export function urlKey(url) {
     return url;
   }
 }
+
+// Canonical host from a URL, www-stripped and lowercased.
+// fallback defaults to '' (BookmarkModal contract); pass url as fallback for
+// the bookmarks.js contract (return raw url on invalid input).
+export const hostOf = (url, fallback = "") => {
+  try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ""); } catch { return fallback; }
+};
+
+// Shared http(s) scheme predicate used at import/favicon/scan boundaries.
+export const isHttpUrl = (url) => /^https?:/i.test(String(url || ""));
+
+// Normalise a user-typed URL: prepend https:// for bare hosts, reject
+// non-http(s) schemes. Returns null for empty/whitespace/non-http input.
+export const normalizeUrl = (raw) => {
+  const v = String(raw || "").trim();
+  if (!v) return null;
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : "https://" + v;
+  try { const u = new URL(candidate); return /^https?:$/.test(u.protocol) ? u.href : null; } catch { return null; }
+};
 
 // fuzzy subsequence match → { score, hits:Set } or null
 export function fuzzy(query, text) {
@@ -117,10 +142,25 @@ export function topOverlay(flags) {
   return null;
 }
 
+// Clamp a palette selection index so it is always in [0, len-1] (or 0 when empty).
+export const clampIndex = (i, len) => Math.min(Math.max(0, i), Math.max(0, len - 1));
+
+// single-letter keyboard shortcut resolver for context menus:
+// returns the item matching e.key (case-insensitive) or null when a modifier
+// key is held, when no item declares .key, or when the entry is a separator
+// string / header object.
+export function matchMenuShortcut(items, { key, metaKey, ctrlKey, altKey }) {
+  if (metaKey || ctrlKey || altKey) return null;
+  return items.find((i) => i && typeof i === "object" && !i.header && i.key &&
+    i.key.toLowerCase() === String(key || "").toLowerCase()) ?? null;
+}
+
 // stable secondary sorts offered in the sort dropdown
 export const byAdded = (a, b) => (b.b.dateAdded || 0) - (a.b.dateAdded || 0);
 export const byAlpha = (a, b) => (a.b.title || "").localeCompare(b.b.title || "");
 export const byDomain = (a, b) => (a.b.domain || "").localeCompare(b.b.domain || "") || byAdded(a, b);
+// copy-then-sort so the underlying array stays untouched and the sort is stable
+const stableSort = (arr, cmp) => [...arr].sort(cmp);
 
 // rank a pool by fuzzy match + recency + frequency
 export function rank(pool, text) {
@@ -128,7 +168,7 @@ export function rank(pool, text) {
     .map((b) => {
       const m = fuzzy(text, b.title + " " + b.domain + " " + b.tags.join(" ") + " " + (b.note || ""));
       if (text && !m) return null;
-      const rec = b.lastVisited ? Math.max(0, 1 - (Date.now() - b.lastVisited) / (400 * 864e5)) : 0;
+      const rec = b.lastVisited ? Math.max(0, 1 - (Date.now() - b.lastVisited) / RECENCY_WINDOW) : 0;
       return { b, score: (m ? m.score : 0) + rec * 6 + Math.log2((b.visitCount || 0) + 1) * 1.5, hits: m ? m.hits : new Set() };
     })
     .filter(Boolean)
@@ -159,14 +199,14 @@ export function selectBookmarks({ library, query, scope, folder, tag, sort, show
   // path-prefix folder match enables drill-down into subfolders
   if (folder) pool = pool.filter((b) => b.folder === folder || b.folder.startsWith(folder + "/"));
   let scored = rank(pool, text);
-  if (scope === "recent") scored = [...scored].sort((a, b) => (b.b.lastVisited || 0) - (a.b.lastVisited || 0));
-  else if (scope === "top") scored = [...scored].sort((a, b) => b.b.visitCount - a.b.visitCount);
-  else if (scope === "added") scored = [...scored].sort(byAdded);
+  if (scope === "recent") scored = stableSort(scored, (a, b) => (b.b.lastVisited || 0) - (a.b.lastVisited || 0));
+  else if (scope === "top") scored = stableSort(scored, (a, b) => b.b.visitCount - a.b.visitCount);
+  else if (scope === "added") scored = stableSort(scored, byAdded);
   let out = scored.slice(0, 100);
   // secondary sort applied to the best 100 (stable: keeps rank order within groups)
-  if (sort === "folder") out = [...out].sort((a, b) => a.b.folder.localeCompare(b.b.folder));
-  else if (sort === "added") out = [...out].sort(byAdded);
-  else if (sort === "alpha") out = [...out].sort(byAlpha);
-  else if (sort === "domain") out = [...out].sort(byDomain);
+  if (sort === "folder") out = stableSort(out, (a, b) => a.b.folder.localeCompare(b.b.folder));
+  else if (sort === "added") out = stableSort(out, byAdded);
+  else if (sort === "alpha") out = stableSort(out, byAlpha);
+  else if (sort === "domain") out = stableSort(out, byDomain);
   return out;
 }

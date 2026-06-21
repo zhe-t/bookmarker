@@ -2,7 +2,8 @@
 // Keyed by bookmark id. Chrome bookmarks have no tags / archive / "dead" flag,
 // so we keep that in chrome.storage.local and merge it at read time.
 
-const KEY = "bookmark-ops:meta:v1";
+export const META_KEY = "bookmark-ops:meta:v1";
+const KEY = META_KEY;
 const SYNC_FLAG = "bops-sync";
 
 export const DEFAULT = {
@@ -36,7 +37,7 @@ export async function getMeta() {
   let chosen = local;
   if (getSyncEnabled()) {
     const synced = await readArea("sync");
-    // last-write-wins across devices
+    // last-write-wins across devices; equal timestamps favor local (strict >)
     if (synced && (!local || (synced._ts || 0) > (local._ts || 0))) chosen = synced;
   }
   return { ...DEFAULT, ...(chosen || {}) };
@@ -45,15 +46,15 @@ export async function getMeta() {
 // Persist meta. Always writes local; mirrors to sync when enabled and it fits.
 // Returns { oversize } so the UI can warn when a write skipped sync.
 export async function setMeta(meta) {
-  meta._ts = Date.now();
+  const out = { ...meta, _ts: Date.now() };
   let oversize = false;
-  try { await chrome.storage.local.set({ [KEY]: meta }); } catch { /* quota */ }
+  try { await chrome.storage.local.set({ [KEY]: out }); } catch { /* quota */ }
   if (getSyncEnabled()) {
-    const size = JSON.stringify(meta).length;
-    if (size < SYNC_BUDGET) { try { await chrome.storage.sync.set({ [KEY]: meta }); } catch { oversize = true; } }
+    const size = JSON.stringify(out).length;
+    if (size < SYNC_BUDGET) { try { await chrome.storage.sync.set({ [KEY]: out }); } catch { oversize = true; } }
     else oversize = true;
   }
-  return { meta, oversize };
+  return { meta: out, oversize };
 }
 
 // convenience patch helper: fn may mutate the draft in place or return a new one
@@ -132,7 +133,8 @@ export function applyTrash(meta, ids) {
 
 // Restore from trash: drop ids from trashed.
 export function applyRestore(meta, ids) {
-  meta.trashed = meta.trashed.filter((x) => !ids.map(String).includes(x));
+  const sids = ids.map(String);
+  meta.trashed = meta.trashed.filter((x) => !sids.includes(x));
   return meta;
 }
 
@@ -144,7 +146,8 @@ export function applyArchive(meta, ids) {
 
 // Unarchive: drop ids from archived.
 export function applyUnarchive(meta, ids) {
-  meta.archived = meta.archived.filter((x) => !ids.map(String).includes(x));
+  const sids = ids.map(String);
+  meta.archived = meta.archived.filter((x) => !sids.includes(x));
   return meta;
 }
 
