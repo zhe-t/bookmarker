@@ -26,7 +26,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         chrome.storage.local.set({ [KEY]: meta });
       });
       sendResponse({ dead });
-    });
+    }).catch(() => sendResponse({ dead: [] }));
     return true; // async
   }
 });
