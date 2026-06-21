@@ -33,6 +33,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
+export function isScannable(url) {
+  try { return /^https?:$/i.test(new URL(url).protocol); } catch { return false; }
+}
+
 async function scan(urls) {
   const dead = [];
   const batch = 12;
@@ -40,6 +44,7 @@ async function scan(urls) {
     const slice = urls.slice(i, i + batch);
     await Promise.allSettled(
       slice.map(async (url) => {
+        if (!isScannable(url)) return; // skip file:/chrome:/javascript:/data: etc.
         try {
           const ctrl = new AbortController();
           const to = setTimeout(() => ctrl.abort(), 6000);
