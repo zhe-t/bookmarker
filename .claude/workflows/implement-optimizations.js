@@ -20,6 +20,12 @@ if (typeof parsedArgs === 'string') {
   try { parsedArgs = JSON.parse(parsedArgs) } catch { parsedArgs = parsedArgs.split(/[\s,]+/).filter(Boolean) }
 }
 const issues = Array.isArray(parsedArgs) ? parsedArgs : (parsedArgs?.issues || parsedArgs?.ids || [])
+// Execute on a cheaper model when requested. The backlog spec is already an
+// Opus-authored, near-mechanical instruction set, so the executor can be cheap.
+// Pass {ids:[...], model:'sonnet'|'haiku', effort:'low'}; defaults inherit the
+// session model. e.g. args = {"ids":["OPT-026",...],"model":"sonnet"}.
+const EXEC_MODEL = Array.isArray(parsedArgs) ? undefined : parsedArgs?.model
+const EXEC_EFFORT = (Array.isArray(parsedArgs) ? undefined : parsedArgs?.effort) || 'medium'
 if (!issues.length) {
   log('No issue ids passed via args — nothing to do.')
   return { error: 'no issues provided', implemented: 0 }
@@ -70,7 +76,7 @@ for (let i = 0; i < issues.length; i++) {
       `4. If you cannot make all checks pass within this issue's scope, FULLY REVERT so the tree is clean for the next issue, and return status="skipped" with the reason in notes:\n` +
       `   git restore --staged . ; git checkout -- . ; git clean -fd src/ test/\n\n` +
       `INVARIANTS: never leave the tree dirty; never push; never commit unrelated changes; the next agent depends on a clean HEAD. Return the structured result.`,
-    { label: id, phase: 'Implement', schema: RESULT_SCHEMA, effort: 'medium' }
+    { label: id, phase: 'Implement', schema: RESULT_SCHEMA, effort: EXEC_EFFORT, ...(EXEC_MODEL ? { model: EXEC_MODEL } : {}) }
   )
 
   const res = r || { id, status: 'failed', summary: 'agent returned no result', filesChanged: [], testsAddedOrChanged: [] }
