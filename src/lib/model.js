@@ -17,6 +17,7 @@ export const greeting = (h = new Date().getHours()) =>
 
 // deterministic color from a domain so favicons fall back to a colored initial
 export function domainColor(domain) {
+  domain = domain || "";
   let h = 0;
   for (let i = 0; i < domain.length; i++) h = (h * 31 + domain.charCodeAt(i)) >>> 0;
   const hue = h % 360;

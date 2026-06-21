@@ -72,6 +72,11 @@ describe("domainColor", () => {
   it("differs across domains", () => {
     expect(domainColor("github.com")).not.toBe(domainColor("example.org"));
   });
+  it("is deterministic for empty/undefined domain", () => {
+    expect(domainColor("github.com")).toBe("hsl(94 55% 45%)");
+    expect(domainColor("")).toBe("hsl(0 55% 45%)");
+    expect(domainColor(undefined)).toBe("hsl(0 55% 45%)");
+  });
 });
 
 describe("urlKey", () => {
