@@ -99,6 +99,21 @@ describe("getMeta", () => {
     const meta = await getMeta();
     expect(meta.notes).toEqual({ 1: "local" });
   });
+
+  it("with sync ENABLED and an EQUAL sync _ts favors the local copy (tie-break)", async () => {
+    setSyncEnabled(true);
+    localArea[KEY] = { notes: { 1: "local" }, _ts: 10 };
+    syncArea[KEY] = { notes: { 1: "synced" }, _ts: 10 };
+    const meta = await getMeta();
+    expect(meta.notes).toEqual({ 1: "local" });
+  });
+
+  it("with sync ENABLED but no synced copy yet returns the local copy", async () => {
+    setSyncEnabled(true);
+    localArea[KEY] = { notes: { 1: "local" }, _ts: 10 };
+    const meta = await getMeta();
+    expect(meta.notes).toEqual({ 1: "local" });
+  });
 });
 
 describe("setMeta", () => {

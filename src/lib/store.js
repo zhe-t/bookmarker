@@ -37,7 +37,7 @@ export async function getMeta() {
   let chosen = local;
   if (getSyncEnabled()) {
     const synced = await readArea("sync");
-    // last-write-wins across devices
+    // last-write-wins across devices; equal timestamps favor local (strict >)
     if (synced && (!local || (synced._ts || 0) > (local._ts || 0))) chosen = synced;
   }
   return { ...DEFAULT, ...(chosen || {}) };
