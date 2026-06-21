@@ -1,7 +1,7 @@
 import { domainColor, urlKey } from "./model.js";
 import { getMeta, patchMeta } from "./store.js";
 
-const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
+const hostOf = (url) => { try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ""); } catch { return url; } };
 
 // Short, human-scannable path for a URL (first 1–2 segments, ellipsized).
 // Used to distinguish a suggestion from a same-domain bookmark.

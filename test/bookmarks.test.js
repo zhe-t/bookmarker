@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { loadEnriched, exportJson, exportHtml } from "../src/lib/bookmarks.js";
+import { urlKey } from "../src/lib/model.js";
 
 const DAY = 864e5;
 const NOW = new Date("2026-06-18T12:00:00Z").getTime();
@@ -109,6 +110,26 @@ describe("loadEnriched", () => {
     // a field not present in our partial META still exists via DEFAULT
     expect(meta.filters).toEqual([]);
     expect(meta.folderStyles).toEqual({});
+  });
+});
+
+describe("hostOf normalization (via loadEnriched.domain)", () => {
+  it("lowercases and strips www, matching urlKey's host portion for an uppercase WWW. host", async () => {
+    const url = "https://WWW.Example.com/page";
+    const tree = [{ id: "0", title: "", children: [
+      { id: "1", parentId: "0", title: "Bookmarks bar",
+        children: [{ id: "11", parentId: "1", title: "", url, dateAdded: 1000 }] },
+    ] }];
+    const prev = globalThis.chrome.bookmarks.getTree;
+    globalThis.chrome.bookmarks.getTree = async () => structuredClone(tree);
+    try {
+      const { all } = await loadEnriched();
+      const b = all.find((x) => x.id === "11");
+      expect(b.domain).toBe("example.com");
+      expect(b.domain).toBe(urlKey(url).split("/")[0]);
+    } finally {
+      globalThis.chrome.bookmarks.getTree = prev;
+    }
   });
 });
 
