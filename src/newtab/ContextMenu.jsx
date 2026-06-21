@@ -1,5 +1,6 @@
 import React, { useRef, useState, useLayoutEffect, useEffect } from "react";
 import { useClickAway } from "../ui/hooks.js";
+import { matchMenuShortcut } from "../lib/model.js";
 
 // Right-click menu, clamped to the viewport. Measured invisibly on first
 // paint, then positioned. Dismissed by click-away, scroll, or resize;
@@ -30,8 +31,7 @@ export function ContextMenu({ x, y, items, onClose }) {
   // it resolves before App's layered Escape/key handler.
   useEffect(() => {
     const h = (e) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const it = items.find((i) => i && i.key && i.key.toLowerCase() === e.key.toLowerCase());
+      const it = matchMenuShortcut(items, e);
       if (it) { e.preventDefault(); e.stopPropagation(); onClose(); it.run(); }
     };
     window.addEventListener("keydown", h, true);

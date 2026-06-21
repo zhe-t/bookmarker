@@ -123,6 +123,16 @@ export function topOverlay(flags) {
   return null;
 }
 
+// single-letter keyboard shortcut resolver for context menus:
+// returns the item matching e.key (case-insensitive) or null when a modifier
+// key is held, when no item declares .key, or when the entry is a separator
+// string / header object.
+export function matchMenuShortcut(items, { key, metaKey, ctrlKey, altKey }) {
+  if (metaKey || ctrlKey || altKey) return null;
+  return items.find((i) => i && typeof i === "object" && !i.header && i.key &&
+    i.key.toLowerCase() === String(key || "").toLowerCase()) ?? null;
+}
+
 // stable secondary sorts offered in the sort dropdown
 export const byAdded = (a, b) => (b.b.dateAdded || 0) - (a.b.dateAdded || 0);
 export const byAlpha = (a, b) => (a.b.title || "").localeCompare(b.b.title || "");

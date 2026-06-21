@@ -17,6 +17,7 @@ import {
   rank,
   selectBookmarks,
   topOverlay,
+  matchMenuShortcut,
   YEAR,
   RECENCY_WINDOW,
 } from "../src/lib/model.js";
@@ -496,6 +497,42 @@ describe("selectBookmarks", () => {
       const r = selectBookmarks({ ...base, sort: "domain", library });
       expect(r[0].b.domain).toBe("apple.com");
     });
+  });
+});
+
+describe("matchMenuShortcut", () => {
+  const items = [
+    "sep",
+    { header: "Actions" },
+    { label: "Open", key: "o", run: () => {} },
+    { label: "Delete", key: "d", run: () => {} },
+    { label: "No key item", run: () => {} },
+  ];
+
+  it("returns the item whose key matches (case-insensitive)", () => {
+    expect(matchMenuShortcut(items, { key: "o" })).toBe(items[2]);
+    expect(matchMenuShortcut(items, { key: "O" })).toBe(items[2]);
+    expect(matchMenuShortcut(items, { key: "D" })).toBe(items[3]);
+  });
+
+  it("returns null when a modifier key is held", () => {
+    expect(matchMenuShortcut(items, { key: "o", metaKey: true })).toBeNull();
+    expect(matchMenuShortcut(items, { key: "o", ctrlKey: true })).toBeNull();
+    expect(matchMenuShortcut(items, { key: "o", altKey: true })).toBeNull();
+  });
+
+  it("skips 'sep' strings and {header} entries (no .key)", () => {
+    // 'sep' and the header object do not match any key
+    expect(matchMenuShortcut(items, { key: "s" })).toBeNull();
+    expect(matchMenuShortcut(items, { key: "A" })).toBeNull();
+  });
+
+  it("returns null when no item declares .key", () => {
+    expect(matchMenuShortcut([{ label: "X", run: () => {} }], { key: "x" })).toBeNull();
+  });
+
+  it("returns null for an empty key", () => {
+    expect(matchMenuShortcut(items, { key: "" })).toBeNull();
   });
 });
 
