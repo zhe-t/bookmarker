@@ -20,6 +20,7 @@ import {
   matchMenuShortcut,
   hostOf,
   normalizeUrl,
+  isHttpUrl,
   YEAR,
   RECENCY_WINDOW,
 } from "../src/lib/model.js";
@@ -157,6 +158,25 @@ describe("normalizeUrl", () => {
     expect(normalizeUrl("   ")).toBeNull();
     expect(normalizeUrl(null)).toBeNull();
     expect(normalizeUrl(undefined)).toBeNull();
+  });
+});
+
+describe("isHttpUrl", () => {
+  it("returns true for http and https URLs", () => {
+    expect(isHttpUrl("https://a.com")).toBe(true);
+    expect(isHttpUrl("http://b.org/path?q=1")).toBe(true);
+    expect(isHttpUrl("HTTP://CAPS.COM")).toBe(true);
+  });
+  it("returns false for non-http(s) schemes", () => {
+    expect(isHttpUrl("chrome://extensions/")).toBe(false);
+    expect(isHttpUrl("file:///etc/hosts")).toBe(false);
+    expect(isHttpUrl("javascript:alert(1)")).toBe(false);
+    expect(isHttpUrl("data:text/html,hi")).toBe(false);
+  });
+  it("returns false for empty, undefined, and null", () => {
+    expect(isHttpUrl("")).toBe(false);
+    expect(isHttpUrl(undefined)).toBe(false);
+    expect(isHttpUrl(null)).toBe(false);
   });
 });
 

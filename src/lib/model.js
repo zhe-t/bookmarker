@@ -55,6 +55,9 @@ export const hostOf = (url, fallback = "") => {
   try { return new URL(url).hostname.toLowerCase().replace(/^www\./, ""); } catch { return fallback; }
 };
 
+// Shared http(s) scheme predicate used at import/favicon/scan boundaries.
+export const isHttpUrl = (url) => /^https?:/i.test(String(url || ""));
+
 // Normalise a user-typed URL: prepend https:// for bare hosts, reject
 // non-http(s) schemes. Returns null for empty/whitespace/non-http input.
 export const normalizeUrl = (raw) => {
