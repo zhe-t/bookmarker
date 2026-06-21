@@ -2,7 +2,8 @@
 // Keyed by bookmark id. Chrome bookmarks have no tags / archive / "dead" flag,
 // so we keep that in chrome.storage.local and merge it at read time.
 
-const KEY = "bookmark-ops:meta:v1";
+export const META_KEY = "bookmark-ops:meta:v1";
+const KEY = META_KEY;
 const SYNC_FLAG = "bops-sync";
 
 export const DEFAULT = {

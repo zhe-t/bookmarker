@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import {
   DEFAULT,
+  META_KEY,
   getSyncEnabled,
   setSyncEnabled,
   getMeta,
@@ -55,6 +56,12 @@ beforeEach(() => {
   lsStore = {};
   globalThis.chrome.storage.local = makeArea(localArea);
   globalThis.chrome.storage.sync = makeArea(syncArea);
+});
+
+describe("META_KEY", () => {
+  it("is the exact wire format the service worker reads/writes", () => {
+    expect(META_KEY).toBe("bookmark-ops:meta:v1"); // locks the shared storage key
+  });
 });
 
 describe("getMeta", () => {

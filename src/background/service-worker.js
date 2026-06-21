@@ -1,7 +1,7 @@
 // MV3 service worker. Handles the keyboard command for the dashboard and a
 // best-effort dead-link scan requested by the dashboard.
 
-const KEY = "bookmark-ops:meta:v1";
+import { META_KEY as KEY } from "../lib/store.js";
 
 chrome.commands.onCommand.addListener((command) => {
   if (command === "open-dashboard") {
