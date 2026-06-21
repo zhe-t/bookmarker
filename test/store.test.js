@@ -186,6 +186,29 @@ describe("setMeta", () => {
     expect(localArea[KEY]).toBeDefined(); // local still written
     expect(syncArea[KEY]).toBeUndefined(); // sync skipped
   });
+
+  // The cutoff is strict `<`, so exactly-at-budget is oversize and just-under mirrors.
+  // Filler is sized off the serialized envelope so the boundary is hit to the byte.
+  const BUDGET = 90 * 1024;
+  const envBase = JSON.stringify({ notes: { 1: "" }, _ts: NOW }).length;
+
+  it("treats a payload serializing to EXACTLY the 90KB budget as oversize", async () => {
+    setSyncEnabled(true);
+    const at = { notes: { 1: "x".repeat(BUDGET - envBase) } };
+    expect(JSON.stringify({ ...at, _ts: NOW }).length).toBe(BUDGET); // exact boundary
+    const { oversize } = await setMeta(at);
+    expect(oversize).toBe(true); // `< BUDGET` excludes equality
+    expect(syncArea[KEY]).toBeUndefined();
+  });
+
+  it("mirrors a payload serializing to one byte UNDER the budget", async () => {
+    setSyncEnabled(true);
+    const under = { notes: { 1: "x".repeat(BUDGET - envBase - 1) } };
+    expect(JSON.stringify({ ...under, _ts: NOW }).length).toBe(BUDGET - 1);
+    const { oversize } = await setMeta(under);
+    expect(oversize).toBe(false);
+    expect(syncArea[KEY]).toBeDefined();
+  });
 });
 
 describe("patchMeta", () => {
