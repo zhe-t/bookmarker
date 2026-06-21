@@ -132,7 +132,8 @@ export function applyTrash(meta, ids) {
 
 // Restore from trash: drop ids from trashed.
 export function applyRestore(meta, ids) {
-  meta.trashed = meta.trashed.filter((x) => !ids.map(String).includes(x));
+  const sids = ids.map(String);
+  meta.trashed = meta.trashed.filter((x) => !sids.includes(x));
   return meta;
 }
 
@@ -144,7 +145,8 @@ export function applyArchive(meta, ids) {
 
 // Unarchive: drop ids from archived.
 export function applyUnarchive(meta, ids) {
-  meta.archived = meta.archived.filter((x) => !ids.map(String).includes(x));
+  const sids = ids.map(String);
+  meta.archived = meta.archived.filter((x) => !sids.includes(x));
   return meta;
 }
 
