@@ -105,6 +105,40 @@ describe("loadEnriched", () => {
     expect(folderTree[0].count).toBe(2);
   });
 
+  it("walks deep (depth-3) nesting and empty-title nested folders into correct paths and counts", async () => {
+    // Dev > Sub > Deep > leaf (depth-3) and Dev > "" (empty title) > leaf
+    const tree = [{ id: "0", title: "", children: [
+      { id: "1", parentId: "0", title: "Bookmarks bar", children: [
+        { id: "10", parentId: "1", title: "Dev", children: [
+          { id: "20", parentId: "10", title: "Sub", children: [
+            { id: "30", parentId: "20", title: "Deep", children: [
+              { id: "301", parentId: "30", title: "Leaf", url: "https://deep.example", dateAdded: 1000 },
+            ] },
+          ] },
+          { id: "40", parentId: "10", title: "", children: [
+            { id: "401", parentId: "40", title: "Empty", url: "https://empty.example", dateAdded: 2000 },
+          ] },
+        ] },
+      ] },
+    ] }];
+    const prev = globalThis.chrome.bookmarks.getTree;
+    globalThis.chrome.bookmarks.getTree = async () => structuredClone(tree);
+    try {
+      const { all, folderTree } = await loadEnriched();
+      const byId = Object.fromEntries(all.map((b) => [b.id, b]));
+      expect(byId["301"].folder).toBe("Dev/Sub/Deep");
+      expect(byId["401"].folder).toBe("Dev/"); // empty segment yields a trailing slash, filtered out downstream
+      // both leaves roll up under Dev; the empty segment is dropped by filter(Boolean)
+      expect(folderTree.map((f) => f.name)).toEqual(["Dev"]);
+      expect(folderTree[0].count).toBe(2);
+      const sub = folderTree[0].children.find((c) => c.name === "Sub");
+      expect(sub.count).toBe(1);
+      expect(sub.children.find((c) => c.name === "Deep").count).toBe(1);
+    } finally {
+      globalThis.chrome.bookmarks.getTree = prev;
+    }
+  });
+
   it("returns meta merged with the schema defaults", async () => {
     const { meta } = await loadEnriched();
     // a field not present in our partial META still exists via DEFAULT
