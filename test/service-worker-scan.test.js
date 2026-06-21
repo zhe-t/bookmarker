@@ -103,6 +103,24 @@ describe("scan", () => {
   });
 });
 
+describe("(OPT-045) message handler early-returns for non-scan messages", () => {
+  it("returns undefined and does not call sendResponse for type:'other'", async () => {
+    const sendResponse = vi.fn();
+    const result = capturedMessageHandler({ type: "other" }, {}, sendResponse);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(result).toBeUndefined();
+    expect(sendResponse).not.toHaveBeenCalled();
+  });
+
+  it("returns undefined and does not call sendResponse for null message", async () => {
+    const sendResponse = vi.fn();
+    const result = capturedMessageHandler(null, {}, sendResponse);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(result).toBeUndefined();
+    expect(sendResponse).not.toHaveBeenCalled();
+  });
+});
+
 describe("(OPT-043) message handler guards non-array urls", () => {
   it("calls sendResponse({ dead: [] }) when urls is a string (not array)", async () => {
     const sendResponse = vi.fn();

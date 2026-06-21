@@ -18,19 +18,18 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
 // so we can only reliably detect total failures (DNS / connection refused),
 // not HTTP 404s. This is an inherent browser limitation, surfaced honestly.
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type === "scan") {
-    (async () => {
-      const dead = await scan(Array.isArray(msg.urls) ? msg.urls : []).catch(() => []);
-      try {
-        const r = await chrome.storage.local.get(KEY);
-        const meta = r[KEY] || {};
-        meta.dead = dead;
-        await chrome.storage.local.set({ [KEY]: meta });
-      } catch { /* quota or other storage error — still respond */ }
-      sendResponse({ dead });
-    })();
-    return true; // async
-  }
+  if (msg?.type !== "scan") return; // only handle scan; others need no async response
+  (async () => {
+    const dead = await scan(Array.isArray(msg.urls) ? msg.urls : []).catch(() => []);
+    try {
+      const r = await chrome.storage.local.get(KEY);
+      const meta = r[KEY] || {};
+      meta.dead = dead;
+      await chrome.storage.local.set({ [KEY]: meta });
+    } catch { /* quota or other storage error — still respond */ }
+    sendResponse({ dead });
+  })();
+  return true; // async
 });
 
 export function isScannable(url) {
