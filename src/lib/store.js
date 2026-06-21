@@ -45,15 +45,15 @@ export async function getMeta() {
 // Persist meta. Always writes local; mirrors to sync when enabled and it fits.
 // Returns { oversize } so the UI can warn when a write skipped sync.
 export async function setMeta(meta) {
-  meta._ts = Date.now();
+  const out = { ...meta, _ts: Date.now() };
   let oversize = false;
-  try { await chrome.storage.local.set({ [KEY]: meta }); } catch { /* quota */ }
+  try { await chrome.storage.local.set({ [KEY]: out }); } catch { /* quota */ }
   if (getSyncEnabled()) {
-    const size = JSON.stringify(meta).length;
-    if (size < SYNC_BUDGET) { try { await chrome.storage.sync.set({ [KEY]: meta }); } catch { oversize = true; } }
+    const size = JSON.stringify(out).length;
+    if (size < SYNC_BUDGET) { try { await chrome.storage.sync.set({ [KEY]: out }); } catch { oversize = true; } }
     else oversize = true;
   }
-  return { meta, oversize };
+  return { meta: out, oversize };
 }
 
 // convenience patch helper: fn may mutate the draft in place or return a new one

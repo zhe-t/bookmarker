@@ -120,6 +120,14 @@ describe("setMeta", () => {
     expect(syncArea[KEY]).toBeUndefined();
   });
 
+  it("does not mutate the caller's meta object", async () => {
+    setSyncEnabled(false);
+    const input = { pinned: ["a"] };
+    const { meta } = await setMeta(input);
+    expect(input._ts).toBeUndefined(); // caller's object untouched
+    expect(meta._ts).toBe(NOW); // stamp lives on the returned copy
+  });
+
   it("returns oversize:true and does NOT write sync when meta exceeds the 90KB budget", async () => {
     setSyncEnabled(true);
     const big = { notes: { 1: "x".repeat(90 * 1024 + 10) } };
