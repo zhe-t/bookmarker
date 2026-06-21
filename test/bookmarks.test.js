@@ -135,6 +135,15 @@ describe("exportHtml", () => {
     expect(html).not.toContain("<b>"); // raw tag must be escaped
   });
 
+  it("escapes URL and tags so attribute-injection payloads cannot break out", () => {
+    const html = exportHtml([
+      { url: 'https://a.com/"><img src=x>', title: "t", tags: ['t">x'], dateAdded: 1000 },
+    ]);
+    expect(html).not.toContain('"><img');
+    expect(html).toContain('HREF="https://a.com/&quot;&gt;&lt;img src=x&gt;"');
+    expect(html).toContain('TAGS="t&quot;&gt;x"');
+  });
+
   it("does not throw on a title-less item and emits an empty title segment", () => {
     let html;
     expect(() => {
