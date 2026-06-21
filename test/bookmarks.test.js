@@ -357,6 +357,19 @@ describe("importJson", () => {
     await importJson(text, new Map());
     expect(getStore().notes["500"]).toBe("hello");
   });
+
+  it("skips non-http(s) URLs and only creates the https entry", async () => {
+    const { created } = install();
+    const text = JSON.stringify({ bookmarks: [
+      { url: "https://ok.com", title: "OK" },
+      { url: "javascript:evil()", title: "Evil" },
+      { url: "data:text/html,<b>hi</b>", title: "Data" },
+      { url: "file:///etc/passwd", title: "File" },
+    ] });
+    const count = await importJson(text, new Map());
+    expect(count).toBe(1);
+    expect(created.map((c) => c.url)).toEqual(["https://ok.com"]);
+  });
 });
 
 // Minimal DOMParser mock for the node environment: parses <A HREF="...">text</A> tags.

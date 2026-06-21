@@ -160,7 +160,7 @@ export async function importJson(text, existing) {
   const items = Array.isArray(data.bookmarks) ? data.bookmarks : [];
   let created = 0;
   for (const it of items) {
-    if (!it.url || existing.has(it.url)) continue;
+    if (!it.url || !isHttpUrl(it.url) || existing.has(it.url)) continue;
     const top = it.folder ? it.folder.split("/")[0] : null;
     const folderName = top && !CONTAINER.test(top) ? top : null;
     try { const node = await createBookmark({ title: it.title || it.url, url: it.url, folderName }); existing.set(it.url, node.id); created++; } catch { /* skip */ }
