@@ -87,6 +87,13 @@ describe("scan", () => {
     expect(dead).toEqual(["https://x.com"]);
   });
 
+  it("(OPT-044) caps input to 5000 URLs — fetchFn called at most 5000 times for 6000-URL input", async () => {
+    const urls = Array.from({ length: 6000 }, (_, i) => `https://url-${i}.com`);
+    const fetchFn = vi.fn(async () => new Response());
+    await scan(urls, { fetchFn });
+    expect(fetchFn).toHaveBeenCalledTimes(5000);
+  });
+
   it("(OPT-041) abort timer is cleared via finally even when fetchFn rejects synchronously", async () => {
     vi.useFakeTimers();
     const fetchFn = vi.fn(async () => { throw new Error("fail"); });
